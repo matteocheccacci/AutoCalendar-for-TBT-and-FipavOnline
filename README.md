@@ -30,7 +30,7 @@ Questo script trasforma il tuo Foglio Google in un assistente personale per l'ar
 
 ### 3. Attivazione del Pilota Automatico
 Per fare in modo che lo script lavori da solo senza che tu debba aprire il foglio:
-* Vai nel menù **🏐 Sync Arbitri** > **Configura Automazione (Trigger)**.
+* Vai nel menù **🏐 AutoCalendar** > **Configura Automazione (Trigger)**.
 * Inserisci ogni quante ore vuoi che lo script controlli la posta (es. `6`).
 * Clicca **OK**. Lo script ora è attivo sui server Google e girerà anche a PC spento.
 
