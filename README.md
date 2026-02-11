@@ -1,14 +1,14 @@
 # 🏐 Guida Setup: Sincronizzazione Automatica Gare
 
-Questo script trasforma il tuo Foglio Google in un assistente personale per l'arbitraggio. Legge le email di designazione, aggiorna l'archivio gare e sincronizza tutto sul tuo calendario.
+Questo script trasforma il tuo Foglio Google in un assistente personale per l'arbitraggio. Legge le email di designazione (Regionali e Territoriali), compila il tuo archivio gare e sincronizza gli eventi su un calendario Google dedicato.
 
 ---
 
 ## 🛠️ Requisiti Iniziali
 
-1.  **Foglio Google**: Crea un nuovo Foglio Google.
-2.  **Nome Foglio**: Rinomina la linguetta in basso (il foglio di lavoro) esattamente come **`Arbitro`**.
-3.  **Intestazioni**: Inserisci i seguenti titoli nella prima riga (Riga 1) per mantenere l'ordine:
+1.  **Foglio Google**: Crea un nuovo foglio.
+2.  **Nome Foglio**: Rinomina la linguetta in basso esattamente come **`Arbitro`**.
+3.  **Intestazioni**: Inserisci questi titoli nella **Riga 1**:
     * **A:** Data | **B:** Ora | **C:** Luogo | **D:** Casa | **E:** Ospite | **F:** Categoria | **G:** Nr. Gara | **H:** Cod. Attivazione | **I:** Cod. Firma | **J:** 1° Arb | **K:** 2° Arb
 
 ---
@@ -16,42 +16,36 @@ Questo script trasforma il tuo Foglio Google in un assistente personale per l'ar
 ## 🚀 Configurazione in 5 Minuti
 
 ### 1. Installazione del Codice
-* Nel tuo Foglio Google, vai su **Estensioni** > **Apps Script**.
-* Cancella tutto il codice presente nell'editor.
-* Incolla il codice fornito nel file `Codice.gs`.
-* Clicca sull'icona del floppy (**Salva**) e assegna un nome al progetto (es. *Gestione Arbitri*).
+* Nel tuo Foglio Google: **Estensioni** > **Apps Script**.
+* Incolla il codice fornito nel file `Codice.gs` (cancellando eventuali testi preesistenti).
+* Clicca sull'icona del floppy (**Salva**) e dai un nome al progetto.
 
-### 2. Primo Avvio e Autorizzazione
-* Torna al Foglio Google e **ricarica la pagina** del browser.
-* Vedrai apparire il menù **🏐 Sync Arbitri**.
-* Seleziona **Scarica Nuove Gare da Gmail**.
-* Google ti chiederà di autorizzare lo script. 
-    * *Nota:* Se appare l'avviso "App non verificata", clicca su **Avanzate** e poi su **Vai a [Nome Progetto] (non sicura)** per procedere.
+### 2. Attivazione e API Gemini (Opzionale ma Consigliato)
+L'integrazione con Gemini permette un parsing intelligente che evita errori con i nomi dei dirigenti o indirizzi complessi.
+* Ottieni una chiave gratuita su [Google AI Studio](https://aistudio.google.com/).
+* Torna al foglio, ricarica la pagina e vai nel menù **🏐 AutoCalendar** > **Configura API Gemini e Trigger**.
+* Incolla la tua chiave quando richiesto. Se non vuoi usarla, lascia il campo vuoto: lo script userà il sistema di ricerca standard.
 
-### 3. Attivazione del Pilota Automatico
-Per fare in modo che lo script lavori da solo senza che tu debba aprire il foglio:
-* Vai nel menù **🏐 AutoCalendar** > **Configura Automazione (Trigger)**.
-* Inserisci ogni quante ore vuoi che lo script controlli la posta (es. `6`).
-* Clicca **OK**. Lo script ora è attivo sui server Google e girerà anche a PC spento.
+### 3. Primo Avvio
+* Dal menù **🏐 Sync Arbitri**, seleziona **Sincronizzazione MANUALE (Tutto)**.
+* Google ti chiederà di autorizzare lo script. Clicca su **Avanzate** > **Vai a [Nome Progetto] (non sicura)** per procedere.
+* Lo script creerà automaticamente un calendario chiamato **"Partite - AC"**.
 
 ---
 
-## 📖 Come Funziona
+## 📖 Funzionalità
 
-1.  **Lettura Gmail**: Lo script cerca email non lette provenienti da *TieBreak* o *Fipav Varese*. 
-2.  **Archiviazione**: Estrae Numero Gara, Squadre, Data e Codici, inserendo una nuova riga nel foglio.
-3.  **Calendario**: Crea automaticamente l'evento sul tuo calendario principale.
-4.  **Notifiche**: L'evento include promemoria popup:
-    * **24 ore prima** della gara.
-    * **2 ore prima** della gara.
-5.  **Sicurezza**: Se ricevi un'email per una gara già presente, lo script la ignorerà per evitare duplicati.
+1.  **Sincronizzazione Automatica**: Una volta configurato il Trigger, lo script controllerà Gmail ogni 2 ore alla ricerca di nuove gare.
+2.  **Calendario Dedicato**: Gli eventi vengono inseriti nel calendario "Partite - AC" per non intasare il tuo calendario personale.
+3.  **Controllo Duplicati**: Lo script verifica il numero gara: non avrai mai doppioni nel foglio o nel calendario.
+4.  **Descrizioni Pulite**: Gli eventi in calendario mostrano solo i dati essenziali (Gara e Codici Referto) per una consultazione rapida da smartphone.
 
 ---
 
 ## ⚠️ Note Importanti
 
-* **Email "Non Lette"**: Lo script elabora solo le email contrassegnate come non lette. Se vuoi ricaricare una gara vecchia, segnala come "da leggere" su Gmail e avvia la funzione manualmente.
-* **Modifiche**: Se cambi l'ID del calendario o il nome del foglio, ricordati di aggiornare le variabili corrispondenti nel codice.
+* **Email Lette/Non Lette**: L'automazione scarica solo le email **non lette**. La funzione manuale scansiona invece tutte le email degli ultimi 30 giorni.
+* **Mobile**: Per vedere le partite sul telefono, ricordati di attivare la sincronizzazione del nuovo calendario "Partite - AC" nelle impostazioni dell'app Google Calendar.
 
 ---
 *Dal creatore di RefPublic*
