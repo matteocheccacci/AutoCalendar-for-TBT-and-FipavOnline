@@ -27,7 +27,7 @@ L'integrazione con Gemini permette un parsing intelligente che evita errori con 
 * Incolla la tua chiave quando richiesto. Se non vuoi usarla, lascia il campo vuoto: lo script userà il sistema di ricerca standard.
 
 ### 3. Primo Avvio
-* Dal menù **🏐 Sync Arbitri**, seleziona **Sincronizzazione MANUALE (Tutto)**.
+* Dal menù **🏐 AutoCalendar**, seleziona **Sincronizzazione MANUALE (Tutto)**.
 * Google ti chiederà di autorizzare lo script. Clicca su **Avanzate** > **Vai a [Nome Progetto] (non sicura)** per procedere.
 * Lo script creerà automaticamente un calendario chiamato **"Partite - AC"**.
 
