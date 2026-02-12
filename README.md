@@ -10,19 +10,8 @@ AutoCalendar è uno script avanzato per **Google Apps Script** progettato per gl
 2. **Rinomina il foglio di lavoro**: La linguetta in basso deve chiamarsi esattamente **`Arbitro`**.
 3. **Prepara le intestazioni**: Inserisci questi titoli nella **Riga 1**:
 
-| Colonna | Intestazione |
-| :--- | :--- |
-| **A** | Data |
-| **B** | Ora |
-| **C** | Luogo |
-| **D** | Casa |
-| **E** | Ospite |
-| **F** | Categoria |
-| **G** | Nr. Gara |
-| **H** | Cod. Attivazione |
-| **I** | Cod. Firma |
-| **J** | 1° Arb |
-| **K** | 2° Arb |
+| Colonna | **A** | **B** | **C** | **D** | **E** | **F** | **G** | **H** | **I*** | **J*** | **K** |
+| Intestazione | Data | Ora | Luogo | Squadra Casa | Squadra Ospite | Categoria | Nr. Gara | Cod. Apertura | Cod. Firma | 1° Arbitro | 2° Arbitro | 
 
 ---
 
