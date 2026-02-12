@@ -192,8 +192,6 @@ function createCalendarEvents() {
       var arb2 = String(row[10]).trim();
       var arb1Lower = arb1.toLowerCase();
       var arb2Lower = arb2.toLowerCase();
-
-      // Logica Arbitri: Confronto flessibile (se il tuo nome è contenuto nella cella)
       var amIArb1 = myName !== "" && (arb1Lower.includes(myName) || myName.includes(arb1Lower));
       var amIArb2 = myName !== "" && (arb2Lower.includes(myName) || myName.includes(arb2Lower));
 
