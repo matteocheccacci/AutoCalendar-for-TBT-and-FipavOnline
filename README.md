@@ -42,7 +42,7 @@ Per un'estrazione perfetta che distingua squadre da indirizzi o dirigenti, lo sc
 ### 3. Configurazione Finale
 * Torna al Foglio Google e ricarica la pagina.
 * Nel nuovo menù **🏐 AutoCalendar**, seleziona **Configurazione Iniziale Completa**.
-* Inserisci l'API Key se la stai utilizzando, scegli la frequenza (es. ogni 2 ore) e aggiungi eventuali invitati (es. i tuoi familiari).
+* Inserisci il tuo cognome e il tuo nome, inserisci l'API Key se la stai utilizzando, scegli la frequenza (es. ogni 2 ore) e aggiungi eventuali invitati (es. i tuoi familiari).
 
 
 ---
