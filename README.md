@@ -1,51 +1,79 @@
-# 🏐 Guida Setup: Sincronizzazione Automatica Gare
+# 🏐 AutoCalendar: Sincronizzazione Automatica Gare
 
-Questo script trasforma il tuo Foglio Google in un assistente personale per l'arbitraggio. Legge le email di designazione (Regionali e Territoriali), compila il tuo archivio gare e sincronizza gli eventi su un calendario Google dedicato.
-
----
-
-## 🛠️ Requisiti Iniziali
-
-1.  **Foglio Google**: Crea un nuovo foglio.
-2.  **Nome Foglio**: Rinomina la linguetta in basso esattamente come **`Arbitro`**.
-3.  **Intestazioni**: Inserisci questi titoli nella **Riga 1**:
-    * **A:** Data | **B:** Ora | **C:** Luogo | **D:** Casa | **E:** Ospite | **F:** Categoria | **G:** Nr. Gara | **H:** Cod. Attivazione | **I:** Cod. Firma | **J:** 1° Arb | **K:** 2° Arb
+AutoCalendar è uno script avanzato per **Google Apps Script** progettato per gli Ufficiali di Gara. Automatizza la gestione delle designazioni leggendo le email di **TieBreakTech** e **FipavOnline**, popolando un database su Google Sheets e creando eventi intelligenti sul tuo Calendario.
 
 ---
 
-## 🚀 Configurazione in 5 Minuti
+## 🛠️ Requisiti Iniziali del Foglio
 
-### 1. Installazione del Codice
-* Nel tuo Foglio Google: **Estensioni** > **Apps Script**.
-* Incolla il codice fornito nel file `Codice.gs` (cancellando eventuali testi preesistenti).
-* Clicca sull'icona del floppy (**Salva**) e dai un nome al progetto.
+1. **Crea un nuovo Foglio Google**.
+2. **Rinomina il foglio di lavoro**: La linguetta in basso deve chiamarsi esattamente **`Arbitro`**.
+3. **Prepara le intestazioni**: Inserisci questi titoli nella **Riga 1**:
 
-### 2. Attivazione e API Gemini (Opzionale ma Consigliato)
-L'integrazione con Gemini permette un parsing intelligente che evita errori con i nomi dei dirigenti o indirizzi complessi.
-* Ottieni una chiave gratuita su [Google AI Studio](https://aistudio.google.com/).
-* Torna al foglio, ricarica la pagina e vai nel menù **🏐 AutoCalendar** > **Configura API Gemini e Trigger**.
-* Incolla la tua chiave quando richiesto. Se non vuoi usarla, lascia il campo vuoto: lo script userà il sistema di ricerca standard.
-
-### 3. Primo Avvio
-* Dal menù **🏐 AutoCalendar**, seleziona **Sincronizzazione MANUALE (Tutto)**.
-* Google ti chiederà di autorizzare lo script. Clicca su **Avanzate** > **Vai a [Nome Progetto] (non sicura)** per procedere.
-* Lo script creerà automaticamente un calendario chiamato **"Partite - AC"**.
-
----
-
-## 📖 Funzionalità
-
-1.  **Sincronizzazione Automatica**: Una volta configurato il Trigger, lo script controllerà Gmail ogni 2 ore alla ricerca di nuove gare.
-2.  **Calendario Dedicato**: Gli eventi vengono inseriti nel calendario "Partite - AC" per non intasare il tuo calendario personale.
-3.  **Controllo Duplicati**: Lo script verifica il numero gara: non avrai mai doppioni nel foglio o nel calendario.
-4.  **Descrizioni Pulite**: Gli eventi in calendario mostrano solo i dati essenziali (Gara e Codici Referto) per una consultazione rapida da smartphone.
+| Colonna | Intestazione |
+| :--- | :--- |
+| **A** | Data |
+| **B** | Ora |
+| **C** | Luogo |
+| **D** | Casa |
+| **E** | Ospite |
+| **F** | Categoria |
+| **G** | Nr. Gara |
+| **H** | Cod. Attivazione |
+| **I** | Cod. Firma |
+| **J** | 1° Arb |
+| **K** | 2° Arb |
 
 ---
 
-## ⚠️ Note Importanti
+## 🚀 Installazione Rapida
 
-* **Email Lette/Non Lette**: L'automazione scarica solo le email **non lette**. La funzione manuale scansiona invece tutte le email degli ultimi 30 giorni.
-* **Mobile**: Per vedere le partite sul telefono, ricordati di attivare la sincronizzazione del nuovo calendario "Partite - AC" nelle impostazioni dell'app Google Calendar.
+### 1. Caricamento Script
+* Dal tuo Foglio Google, vai su **Estensioni** > **Apps Script**.
+* Incolla il contenuto del file `Codice.gs`.
+* Salva il progetto con il nome "AutoCalendar".
+
+### 2. Ottenere la Gemini API Key (non obbligatorio)
+Per un'estrazione perfetta che distingua squadre da indirizzi o dirigenti, lo script utilizza l'IA di Google.
+1. Accedi a [Google AI Studio](https://aistudio.google.com/).
+2. Clicca su **"Get API key"** e poi su **"Create API key in new project"**.
+3. Copia la chiave generata (trattala come una password personale).
+
+### 3. Configurazione Finale
+* Torna al Foglio Google e ricarica la pagina.
+* Nel nuovo menù **🏐 AutoCalendar**, seleziona **Configurazione Iniziale Completa**.
+* Inserisci l'API Key se la stai utilizzando, scegli la frequenza (es. ogni 2 ore) e aggiungi eventuali invitati (es. i tuoi familiari).
 
 ---
-*Dal creatore di RefPublic*
+
+
+
+---
+
+## 📖 Funzionalità Principali
+
+* **Lettura Intelligente**: Distingue le email inviate da Fipav Web Manager e quelle di FipavOnline.
+* **Filtro Duplicati Stagionale**: Verifica la combinazione `Data + Numero Gara`, per evitare la creazione di duplicati.
+* **Notifiche Calendario**: 
+  * Un promemoria **24 ore prima** del match.
+  * Un promemoria la **mattina stessa alle ore 08:00**.
+* **Sincronizzazione Manuale**: Scansiona tutte le email degli ultimi 30 giorni (anche se già lette) per recuperare designazioni perse.
+
+---
+
+## ⚠️ Note di Sicurezza e Mobile
+
+* **Privacy**: La tua API Key viene salvata nelle `ScriptProperties` protette di Google. Non è visibile nel codice se condividi il foglio.
+* **Google Calendar**: Se non vedi gli eventi sul tuo smartphone, apri l'app **Google Calendar** > **Impostazioni** > **Partite - AC** e attiva la **Sincronizzazione**.
+
+---
+
+## 📄 Licenza e Segnalazione Bug
+
+Il prodotto è concesso in **Licenza MIT**. Il codice è aperto e disponibile per modifiche.
+Puoi segnalare bug o suggerire migliorie tramite la sezione **Issues** su GitHub.
+
+
+
+---
+**© 2026 KekkoTech Softwares - RefPublic Team** *Sviluppato da Matteo Checcacci*
