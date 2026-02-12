@@ -1,7 +1,7 @@
 const CALENDAR_NAME = "Partite - AC";
 const MAJOR_VERSION = 0;
 const MINOR_VERSION = 4;
-const PATCH_VERSION = 5;
+const PATCH_VERSION = 6;
 const githubUrl = "https://github.com/matteocheccacci/AutoCalendar-for-TBT-and-FipavOnline";
 
 function onOpen() {
@@ -192,7 +192,7 @@ function createCalendarEvents() {
 
 function callGeminiAI(text, key) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
-  const prompt = `Analizza l'HTML di questa email di designazione arbitri. Ignora date e orari di inoltro o ricezione nell'intestazione. Estrai i dati della gara effettiva. Rispondi SOLO con un JSON: {"data":"DD/MM/YYYY","ora":"HH:MM","luogo":"...","squadraCasa":"...","squadraOspite":"...","categoria":"...","numeroGara":"...","codA":"...","codF":"...","arb1":"...","arb2":"..."}. Testo HTML: ${text}`;
+  const prompt = `Analizza l'HTML di questa email di designazione arbitri. Ignora date e orari di inoltro o ricezione nell'intestazione. Estrai i dati della gara effettiva. Rispondi SOLO con un JSON: {"data":"DD/MM/YYYY","ora":"HH:MM","luogo":"...","squadraCasa":"...","squadraOspite":"...","categoria":"...","numeroGara":"...","codA":"...","codF":"...","arb1":"...","arb2":"..."}. Dove codA è il codice apertura referto e codF è il codice di firma. Se non li trovi nella mail lascia il campo vuoto nel json. Testo HTML: ${text}`;
   const options = { "method": "post", "contentType": "application/json", "payload": JSON.stringify({ "contents": [{ "parts": [{ "text": prompt }] }], "generationConfig": { "response_mime_type": "application/json", "temperature": 0.1 } }), "muteHttpExceptions": true };
   try {
     const response = UrlFetchApp.fetch(url, options);
