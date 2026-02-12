@@ -1,7 +1,7 @@
 const CALENDAR_NAME = "Partite - AC";
 const MAJOR_VERSION = 0;
 const MINOR_VERSION = 5;
-const PATCH_VERSION = 1;
+const PATCH_VERSION = 2;
 const githubUrl = "https://github.com/matteocheccacci/AutoCalendar-for-TBT-and-FipavOnline";
 
 function onOpen() {
@@ -116,10 +116,10 @@ function setGuests() {
 
 function setupTrigger() { setUserName(); setGeminiKey(); setFrequency(); setGuests(); getOrCreateCalendar(); SpreadsheetApp.getUi().alert('✅ Configurazione completata.'); }
 
-function manualSync() { syncGmailToSheetAndCalendar('(from:info@tiebreaktech.com OR subject:"Designazione gara") newer_than:30d'); SpreadsheetApp.getUi().alert('✅ Sincronizzazione terminata.'); }
+function manualSync() { syncGmailToSheetAndCalendar('(from:info@tiebreaktech.com OR subject:"Designazione gara" OR subject:"VARIAZIONE GARA" OR subject:"Spostamento Gara") newer_than:30d'); SpreadsheetApp.getUi().alert('✅ Sincronizzazione terminata.'); }
 
 function syncGmailToSheetAndCalendar(customQuery) {
-  var query = customQuery || 'is:unread (from:info@tiebreaktech.com OR subject:"Designazione gara") newer_than:30d';
+  var query = customQuery || 'is:unread (from:info@tiebreaktech.com OR subject:"Designazione gara" OR subject:"VARIAZIONE GARA" OR subject:"Spostamento Gara") newer_than:30d';
   var threads = GmailApp.search(query);
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Arbitro") || SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
   var apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
@@ -128,8 +128,15 @@ function syncGmailToSheetAndCalendar(customQuery) {
     thread.getMessages().forEach(msg => {
       var htmlBody = msg.getBody();
       var from = msg.getFrom().toLowerCase();
+      var subject = msg.getSubject().toUpperCase();
       var isRegionale = from.includes("tiebreaktech") || htmlBody.includes("TieBreak");
-      var dataGara = isRegionale ? parseRegionaleStandard(htmlBody) : parseTerritorialeStandard(htmlBody);
+      
+      var dataGara = null;
+      if (subject.includes("VARIAZIONE") || subject.includes("SPOSTAMENTO")) {
+        dataGara = parseSpostamento(htmlBody);
+      } else {
+        dataGara = isRegionale ? parseRegionaleStandard(htmlBody) : parseTerritorialeStandard(htmlBody);
+      }
 
       if (apiKey) {
         var aiData = callGeminiAI(htmlBody, apiKey);
@@ -139,6 +146,7 @@ function syncGmailToSheetAndCalendar(customQuery) {
             if (!dataGara.ora || dataGara.ora == "") dataGara.ora = aiData.ora;
             if (!dataGara.codA || dataGara.codA == "") dataGara.codA = aiData.codA;
             if (!dataGara.codF || dataGara.codF == "") dataGara.codF = aiData.codF;
+            if (!dataGara.luogo || dataGara.luogo == "") dataGara.luogo = aiData.luogo;
           }
         }
       }
@@ -147,19 +155,59 @@ function syncGmailToSheetAndCalendar(customQuery) {
         var dataValues = sheet.getDataRange().getValues();
         var rowIndex = -1;
         for (var i = 1; i < dataValues.length; i++) {
-          if (String(dataValues[i][6]) === String(dataGara.numeroGara)) { rowIndex = i + 1; break; }
+          if (String(dataValues[i][6]).includes(String(dataGara.numeroGara))) { rowIndex = i + 1; break; }
         }
         var finalCodA = isRegionale ? "-" : (dataGara.codA || "-");
         var finalCodF = isRegionale ? "-" : (dataGara.codF || "-");
-        var rowData = [dataGara.data, dataGara.ora, dataGara.luogo, dataGara.squadraCasa, dataGara.squadraOspite, dataGara.categoria, dataGara.numeroGara, finalCodA, finalCodF, dataGara.arb1 || "", dataGara.arb2 || "", ""];
-        if (rowIndex === -1) sheet.appendRow(rowData);
-        else sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
+        
+        if (rowIndex !== -1) {
+          var oldRow = dataValues[rowIndex-1];
+          var rowData = [
+            dataGara.data || oldRow[0], 
+            dataGara.ora || oldRow[1], 
+            dataGara.luogo || oldRow[2], 
+            dataGara.squadraCasa || oldRow[3], 
+            dataGara.squadraOspite || oldRow[4], 
+            dataGara.categoria || oldRow[5], 
+            oldRow[6], 
+            finalCodA, finalCodF, 
+            dataGara.arb1 || oldRow[9], 
+            dataGara.arb2 || oldRow[10], ""
+          ];
+          sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
+        } else if (!subject.includes("VARIAZIONE") && !subject.includes("SPOSTAMENTO")) {
+          var rowData = [dataGara.data, dataGara.ora, dataGara.luogo, dataGara.squadraCasa, dataGara.squadraOspite, dataGara.categoria, dataGara.numeroGara, finalCodA, finalCodF, dataGara.arb1 || "", dataGara.arb2 || "", ""];
+          sheet.appendRow(rowData);
+        }
         msg.markRead();
       }
     });
   });
   createCalendarEvents();
   checkUpdatesAutomated();
+}
+
+function parseSpostamento(html) {
+  var text = cleanEmail(html);
+  var res = {};
+  try {
+    var matchGara = text.match(/gara:\s*([A-Z0-9\s\-]+)\s*e['\s]/i);
+    res.numeroGara = matchGara ? matchGara[1].trim() : null;
+    var matchData = text.match(/al giorno:\s*\w+\s*(\d{2}\/\d{2}\/\d{4})/i);
+    res.data = matchData ? matchData[1] : null;
+    var matchOra = text.match(/ore:\s*(\d{2}\.\d{2})/i);
+    res.ora = matchOra ? matchOra[1].replace('.', ':') : null;
+    var lines = text.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i].includes("ore:")) {
+        if (lines[i+1] && lines[i+1].trim() !== "" && !lines[i+1].includes("Mail generata")) {
+          res.luogo = lines[i+1].trim();
+          break;
+        }
+      }
+    }
+    return res.numeroGara ? res : null;
+  } catch (e) { return null; }
 }
 
 function parseDateCell(v) {
@@ -174,7 +222,7 @@ function parseDateCell(v) {
 function parseTimeCell(v) {
   if (v == null) return null;
   if (Object.prototype.toString.call(v) === "[object Date]" && !isNaN(v.getTime())) return { hh: v.getHours(), mm: v.getMinutes() };
-  const m = String(v).trim().match(/^(\d{1,2}):(\d{2})$/);
+  const m = String(v).trim().match(/^(\d{1,2})[:\.](\d{2})$/);
   return m ? { hh: parseInt(m[1],10), mm: parseInt(m[2],10) } : null;
 }
 
@@ -186,6 +234,26 @@ function createCalendarEvents() {
   var guests = PropertiesService.getScriptProperties().getProperty('CALENDAR_GUESTS');
   var myName = (PropertiesService.getScriptProperties().getProperty('USER_FULL_NAME') || "").toLowerCase();
   
+  var excelGaraIds = [];
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][6]) excelGaraIds.push("[GARA:" + data[i][6] + "]");
+  }
+
+  var futureLimit = new Date();
+  futureLimit.setMonth(futureLimit.getMonth() + 6);
+  var allEvents = cal.getEvents(yesterday, futureLimit);
+  
+  allEvents.forEach(ev => {
+    var desc = ev.getDescription();
+    var match = desc.match(/\[GARA:([^\]]+)\]/);
+    if (match) {
+      var tag = match[0];
+      if (excelGaraIds.indexOf(tag) === -1) {
+        ev.deleteEvent();
+      }
+    }
+  });
+
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
     var dOnly = parseDateCell(row[0]);
@@ -209,10 +277,10 @@ function createCalendarEvents() {
     if (row[8] && row[8] !== "-" && row[8] !== "") descLines.push("Codice firma: " + row[8]);
     descLines.push("\n" + searchTag);
 
-    var existing = cal.getEvents(new Date(dOnly.getTime() - 172800000), new Date(dOnly.getTime() + 172800000), {search: searchTag});
+    var existing = cal.getEvents(new Date(dOnly.getTime() - 172800000 * 3), new Date(dOnly.getTime() + 172800000 * 30), {search: searchTag});
     if (existing.length > 0) {
       var ev = existing[0];
-      if (ev.getStartTime().getTime() !== start.getTime() || ev.getLocation() !== row[2]) {
+      if (ev.getStartTime().getTime() !== start.getTime() || ev.getLocation() !== row[2] || ev.getTitle() !== title) {
         ev.setTime(start, end); ev.setLocation(row[2]); ev.setDescription(descLines.join("\n")); ev.setTitle(title);
       }
     } else {
@@ -229,7 +297,7 @@ function createCalendarEvents() {
 
 function callGeminiAI(html, key) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
-  const prompt = `Analizza HTML designazione volley. Ignora inoltri. Estrai dati gara. Rispondi SOLO JSON: {"data":"DD/MM/YYYY","ora":"HH:MM","luogo":"...","squadraCasa":"...","squadraOspite":"...","categoria":"...","numeroGara":"...","codA":"...","codF":"..."}. Se non trovi codA o codF lascia "". Testo: ${html}`;
+  const prompt = `Analizza HTML designazione o variazione volley. Ignora inoltri. Estrai dati gara. Rispondi SOLO JSON: {"data":"DD/MM/YYYY","ora":"HH:MM","luogo":"...","squadraCasa":"...","squadraOspite":"...","categoria":"...","numeroGara":"...","codA":"...","codF":"..."}. Se non trovi codA o codF lascia "". Testo: ${html}`;
   try {
     const res = UrlFetchApp.fetch(url, { "method": "post", "contentType": "application/json", "payload": JSON.stringify({ "contents": [{ "parts": [{ "text": prompt }] }], "generationConfig": { "response_mime_type": "application/json", "temperature": 0.1 } }), "muteHttpExceptions": true });
     return JSON.parse(JSON.parse(res.getContentText()).candidates[0].content.parts[0].text);
