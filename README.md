@@ -47,6 +47,20 @@ Per un'estrazione perfetta che distingua squadre da indirizzi o dirigenti, lo sc
 
 ---
 
+## ⚠️ Se usi un altro provider per la posta elettronica (es. Outlook)
+
+1. Andare nelle impostazioni di Gmail (da PC):
+
+2.  Vai in Impostazioni > Visualizza tutte le impostazioni.
+
+3. Scheda Account e importazione.
+
+4. Sezione Controlla la posta da altri account > Aggiungi un account email.
+
+5. Inserisce i dati di Outlook. In questo modo Gmail "pesca" le mail da Outlook e lo script le troverà come se fossero native.
+
+---
+
 ## 📖 Funzionalità Principali
 
 * **Lettura Intelligente**: Distingue le email inviate da Fipav Web Manager e quelle di FipavOnline.
@@ -72,17 +86,4 @@ Puoi segnalare bug o suggerire migliorie tramite la sezione **Issues** su GitHub
 
 ---
 
-## ⚠️ Se usi un altro provider per la posta elettronica (es. Outlook)
-
-1. Andare nelle impostazioni di Gmail (da PC):
-
-2.  Vai in Impostazioni > Visualizza tutte le impostazioni.
-
-3. Scheda Account e importazione.
-
-4. Sezione Controlla la posta da altri account > Aggiungi un account email.
-
-5. Inserisce i dati di Outlook. In questo modo Gmail "pesca" le mail da Outlook e lo script le troverà come se fossero native.
-
----
 **© 2026 KekkoTech Softwares - RefPublic Team** *Sviluppato da Matteo Checcacci*
