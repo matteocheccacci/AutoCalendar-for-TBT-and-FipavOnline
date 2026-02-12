@@ -44,9 +44,6 @@ Per un'estrazione perfetta che distingua squadre da indirizzi o dirigenti, lo sc
 * Nel nuovo menù **🏐 AutoCalendar**, seleziona **Configurazione Iniziale Completa**.
 * Inserisci l'API Key se la stai utilizzando, scegli la frequenza (es. ogni 2 ore) e aggiungi eventuali invitati (es. i tuoi familiari).
 
----
-
-
 
 ---
 
