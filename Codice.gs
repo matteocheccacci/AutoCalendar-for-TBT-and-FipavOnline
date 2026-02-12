@@ -1,7 +1,7 @@
 const CALENDAR_NAME = "Partite - AC";
 const MAJOR_VERSION = 0;
 const MINOR_VERSION = 5;
-const PATCH_VERSION = 4;
+const PATCH_VERSION = 5;
 const githubUrl = "https://github.com/matteocheccacci/AutoCalendar-for-TBT-and-FipavOnline";
 
 function getRawFileUrl_(fileName) {
@@ -32,6 +32,14 @@ function fetchRemoteCodeText_() {
 function normalizeGaraId_(v) {
   if (v == null) return "";
   return String(v).toUpperCase().replace(/\s+/g, " ").replace(/\s*-\s*/g, " - ").trim();
+}
+
+function normalizeText_(s) {
+  return String(s || "")
+    .replace(/[\u2012\u2013\u2014\u2212]/g, "-")
+    .replace(/\s*-\s*/g, " - ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function onOpen() {
@@ -91,20 +99,31 @@ function showInfo() {
 function setUserName() {
   var ui = SpreadsheetApp.getUi();
   var res = ui.prompt('Nome', 'Inserisci COGNOME NOME:', ui.ButtonSet.OK_CANCEL);
-  if (res.getSelectedButton() == ui.Button.OK) PropertiesService.getScriptProperties().setProperty('USER_FULL_NAME', res.getResponseText().trim());
+  if (res.getSelectedButton() == ui.Button.OK) {
+    var v = (res.getResponseText() || "").trim();
+    if (v) PropertiesService.getScriptProperties().setProperty('USER_FULL_NAME', v);
+  }
 }
 
 function setGeminiKey() {
   var ui = SpreadsheetApp.getUi();
   var res = ui.prompt('API Gemini', 'Inserisci API Key:', ui.ButtonSet.OK_CANCEL);
-  if (res.getSelectedButton() == ui.Button.OK) PropertiesService.getScriptProperties().setProperty('GEMINI_API_KEY', res.getResponseText().trim());
+  if (res.getSelectedButton() == ui.Button.OK) {
+    var v = (res.getResponseText() || "").trim();
+    if (v) PropertiesService.getScriptProperties().setProperty('GEMINI_API_KEY', v);
+  }
 }
 
 function setFrequency() {
   var ui = SpreadsheetApp.getUi();
   var res = ui.prompt('Frequenza', 'Ore (1, 2, 4, 6, 8, 12):', ui.ButtonSet.OK_CANCEL);
   if (res.getSelectedButton() == ui.Button.OK) {
-    var freq = parseInt(res.getResponseText(), 10);
+    var freq = parseInt((res.getResponseText() || "").trim(), 10);
+    var allowed = { 1: true, 2: true, 4: true, 6: true, 8: true, 12: true };
+    if (!allowed[freq]) {
+      ui.alert('Valore non valido', 'Inserisci solo: 1, 2, 4, 6, 8, 12', ui.ButtonSet.OK);
+      return;
+    }
     var triggers = ScriptApp.getProjectTriggers();
     triggers.forEach(t => { if (t.getHandlerFunction() == 'syncGmailToSheetAndCalendar') ScriptApp.deleteTrigger(t); });
     ScriptApp.newTrigger('syncGmailToSheetAndCalendar').timeBased().everyHours(freq).create();
@@ -114,29 +133,35 @@ function setFrequency() {
 function setGuests() {
   var ui = SpreadsheetApp.getUi();
   var res = ui.prompt('Invitati', 'Email (separate da virgola):', ui.ButtonSet.OK_CANCEL);
-  if (res.getSelectedButton() == ui.Button.OK) PropertiesService.getScriptProperties().setProperty('CALENDAR_GUESTS', res.getResponseText().trim());
+  if (res.getSelectedButton() == ui.Button.OK) {
+    PropertiesService.getScriptProperties().setProperty('CALENDAR_GUESTS', (res.getResponseText() || "").trim());
+  }
 }
 
 function setupTrigger() {
-  setUserName(); setGeminiKey(); setFrequency(); setGuests(); getOrCreateCalendar();
+  setUserName();
+  setGeminiKey();
+  setFrequency();
+  setGuests();
+  getOrCreateCalendar();
   SpreadsheetApp.getUi().alert('✅ Configurazione completata.');
 }
 
 function manualSync() {
-  const summary = syncGmailToSheetAndCalendar('(from:info@tiebreaktech.com OR subject:"Designazione gara" OR subject:"VARIAZIONE GARA" OR subject:"Spostamento Gara") newer_than:30d');
-  
+  const summary = syncGmailToSheetAndCalendar('(from:info@tiebreaktech.com OR subject:"Designazione gara" OR subject:"VARIAZIONE GARA" OR subject:"SPOSTAMENTO GARA") newer_than:30d');
   const ui = SpreadsheetApp.getUi();
   ui.alert(
     '✅ Sincronizzazione terminata',
-    `Gare aggiunte alla tabella: ${summary.added}\nGare aggiornate/spostate sul calendario: ${summary.moved}`,
+    `Gare aggiunte a Excel: ${summary.added}\nGare aggiornate/spostate sul calendario: ${summary.moved}`,
     ui.ButtonSet.OK
   );
 }
 
 function syncGmailToSheetAndCalendar(customQuery) {
-  var query = customQuery || 'is:unread (from:info@tiebreaktech.com OR subject:"Designazione gara" OR subject:"VARIAZIONE GARA" OR subject:"Spostamento Gara") newer_than:30d';
+  var query = customQuery || 'is:unread (from:info@tiebreaktech.com OR subject:"Designazione gara" OR subject:"VARIAZIONE GARA" OR subject:"SPOSTAMENTO GARA") newer_than:30d';
   var threads = GmailApp.search(query);
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Arbitro") || SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Arbitro") || ss.getSheets()[0];
   var apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
   var cal = getOrCreateCalendar();
 
@@ -147,7 +172,7 @@ function syncGmailToSheetAndCalendar(customQuery) {
 
   allMsgs.forEach(msg => {
     var htmlBody = msg.getBody();
-    var from = msg.getFrom().toLowerCase();
+    var from = (msg.getFrom() || "").toLowerCase();
     var subject = (msg.getSubject() || "").toUpperCase();
     var isRegionale = from.includes("tiebreaktech") || htmlBody.includes("TieBreak");
 
@@ -163,10 +188,15 @@ function syncGmailToSheetAndCalendar(customQuery) {
       if (aiData) {
         if (!dataGara) dataGara = aiData;
         else {
-          if (!dataGara.ora) dataGara.ora = aiData.ora;
-          if (!dataGara.codA) dataGara.codA = aiData.codA;
-          if (!dataGara.codF) dataGara.codF = aiData.codF;
-          if (!dataGara.luogo) dataGara.luogo = aiData.luogo;
+          if (aiData.ora) dataGara.ora = aiData.ora;
+          if (aiData.codA) dataGara.codA = aiData.codA;
+          if (aiData.codF) dataGara.codF = aiData.codF;
+          if (aiData.luogo) dataGara.luogo = aiData.luogo;
+          if (aiData.squadraCasa) dataGara.squadraCasa = aiData.squadraCasa;
+          if (aiData.squadraOspite) dataGara.squadraOspite = aiData.squadraOspite;
+          if (aiData.data) dataGara.data = aiData.data;
+          if (aiData.numeroGara) dataGara.numeroGara = aiData.numeroGara;
+          if (aiData.categoria) dataGara.categoria = aiData.categoria;
         }
       }
     }
@@ -175,7 +205,7 @@ function syncGmailToSheetAndCalendar(customQuery) {
       var dataValues = sheet.getDataRange().getValues();
       var rowIndex = -1;
       var targetId = normalizeGaraId_(dataGara.numeroGara);
-      
+
       for (var i = 1; i < dataValues.length; i++) {
         var sheetId = normalizeGaraId_(dataValues[i][6]);
         if (sheetId && (sheetId === targetId || sheetId.includes(targetId) || targetId.includes(sheetId))) {
@@ -202,7 +232,7 @@ function syncGmailToSheetAndCalendar(customQuery) {
           dataGara.squadraOspite || oldRow[4],
           dataGara.categoria || oldRow[5],
           oldRow[6],
-          finalCodA, 
+          finalCodA,
           finalCodF,
           dataGara.arb1 || oldRow[9],
           dataGara.arb2 || oldRow[10],
@@ -233,11 +263,11 @@ function syncGmailToSheetAndCalendar(customQuery) {
 function deleteCalendarEventById_(cal, garaId) {
   if (!garaId) return;
   var targetId = normalizeGaraId_(garaId);
-  
+
   var now = new Date();
   var startSearch = new Date(); startSearch.setDate(now.getDate() - 60);
   var endSearch = new Date(); endSearch.setMonth(now.getMonth() + 6);
-  
+
   var events = cal.getEvents(startSearch, endSearch);
   events.forEach(ev => {
     var desc = ev.getDescription() || "";
@@ -252,24 +282,25 @@ function deleteCalendarEventById_(cal, garaId) {
 }
 
 function createCalendarEvents() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Arbitro") || SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Arbitro") || ss.getSheets()[0];
   var cal = getOrCreateCalendar();
   var data = sheet.getDataRange().getValues();
-  
+
   var now = new Date();
   var yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-  
+
   var lookbackLimit = new Date();
   lookbackLimit.setDate(lookbackLimit.getDate() - 30);
-  
+
   var futureLimit = new Date();
   futureLimit.setMonth(futureLimit.getMonth() + 6);
-  
+
   var allEvents = cal.getEvents(lookbackLimit, futureLimit);
 
   var movedCount = 0;
   var eventsMap = {};
-  
+
   allEvents.forEach(ev => {
     var desc = ev.getDescription() || "";
     var match = desc.match(/N\. Gara:\s*([^\n\r]+)/i) || desc.match(/\[GARA:([^\]]+)\]/);
@@ -278,7 +309,7 @@ function createCalendarEvents() {
       if (!eventsMap[id]) {
         eventsMap[id] = ev;
       } else {
-        ev.deleteEvent(); 
+        ev.deleteEvent();
       }
     }
   });
@@ -287,11 +318,11 @@ function createCalendarEvents() {
     var row = data[i];
     var garaIdRaw = row[6];
     if (!garaIdRaw) continue;
-    
+
     var garaIdNorm = normalizeGaraId_(garaIdRaw);
     var dOnly = parseDateCell(row[0]);
     var time = parseTimeCell(row[1]);
-    
+
     if (!dOnly || !time) continue;
 
     if (dOnly < yesterday) {
@@ -300,10 +331,10 @@ function createCalendarEvents() {
     }
 
     var start = new Date(dOnly.getFullYear(), dOnly.getMonth(), dOnly.getDate(), time.hh, time.mm);
-    var end = new Date(start.getTime() + 10800000); 
+    var end = new Date(start.getTime() + 10800000);
     var title = "🏐 " + row[3] + " vs " + row[4];
     var searchTag = "N. Gara: " + garaIdRaw;
-    
+
     var descLines = [searchTag, "Categoria: " + row[5]];
     var arb1 = String(row[9]).trim(), arb2 = String(row[10]).trim();
     var myName = (PropertiesService.getScriptProperties().getProperty('USER_FULL_NAME') || "").toLowerCase();
@@ -348,8 +379,41 @@ function createCalendarEvents() {
   for (var id in eventsMap) {
     eventsMap[id].deleteEvent();
   }
-  
+
   return movedCount;
+}
+
+function splitTeamsSmart_(teamLineRaw) {
+  var teamLine = normalizeText_(teamLineRaw || "");
+  if (!teamLine || teamLine.indexOf(" - ") === -1) return null;
+
+  var parts = teamLine.split(" - ").map(p => normalizeText_(p)).filter(p => p);
+  if (parts.length < 2) return null;
+  if (parts.length === 2) return { casa: parts[0], ospite: parts[1] };
+
+  var best = null;
+  for (var k = 1; k < parts.length; k++) {
+    var left = parts.slice(0, k).join(" - ").trim();
+    var right = parts.slice(k).join(" - ").trim();
+    if (!left || !right) continue;
+
+    var score = 0;
+    var leftTokens = left.split(" ").filter(Boolean).length;
+    var rightTokens = right.split(" ").filter(Boolean).length;
+    score += Math.abs(leftTokens - rightTokens) * 5;
+    score += Math.abs(left.length - right.length) * 0.5;
+
+    if (/^[A-Z\s\d]+$/.test(parts[k-1]) && /[a-z]/.test(parts[k])) {
+      score += 150; 
+    }
+
+    var mid = Math.floor(parts.length / 2);
+    score += Math.abs(k - mid) * 10;
+
+    if (best == null || score < best.score) best = { score: score, casa: left, ospite: right };
+  }
+
+  return best ? { casa: best.casa, ospite: best.ospite } : null;
 }
 
 function parseTerritorialeStandard(html) {
@@ -359,28 +423,37 @@ function parseTerritorialeStandard(html) {
     var matchGara = text.match(/gara (\d+)/i);
     if (!matchGara) return null;
     res.numeroGara = matchGara[1];
-    res.data = text.match(/del (\d{2}\/\d{2}\/\d{4})/)[1];
-    res.ora = text.match(/ore (\d{2}:\d{2})/i)[1];
-    
-    var lines = text.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+
+    var mData = text.match(/del (\d{2}\/\d{2}\/\d{4})/);
+    if (mData) res.data = mData[1];
+
+    var mOra = text.match(/ore (\d{1,2}[:\.]\d{2})/i);
+    if (mOra) res.ora = mOra[1].replace(".", ":");
+
+    var lines = text.split('\n').map(s => normalizeText_(s)).filter(s => s.length > 0);
     for (var i = 0; i < lines.length; i++) {
-      if (lines[i].includes(" - ") && !lines[i].toLowerCase().includes("girone") && !lines[i].toLowerCase().includes("gara")) {
-        var p = lines[i].split(" - ");
-        var mid = Math.ceil(p.length / 2);
-        res.squadraCasa = p.slice(0, mid).join(" - ").trim();
-        res.squadraOspite = p.slice(mid).join(" - ").split(/del \d|alle|ore/i)[0].trim();
-        break;
+      var l = lines[i];
+      if (l.includes(" - ") && !l.toLowerCase().includes("girone") && !l.toLowerCase().includes("gara") && !l.toLowerCase().includes("campo:")) {
+        var teamLine = l.split(/del \d|alle|ore/i)[0].trim();
+        var pair = splitTeamsSmart_(teamLine);
+        if (pair) {
+          res.squadraCasa = pair.casa;
+          res.squadraOspite = pair.ospite;
+          break;
+        }
       }
     }
-    res.luogo = text.match(/Campo:(.*?)\n/i) ? text.match(/Campo:(.*?)\n/i)[1].trim() : "Vedi mail";
-    
+
+    var mCampo = text.match(/Campo:(.*?)\n/i);
+    res.luogo = mCampo ? normalizeText_(mCampo[1]) : "Vedi mail";
+
     res.codA = text.match(/CODICE ATTIVAZIONE REFERTO:\s*(\d+)/i) ? text.match(/CODICE ATTIVAZIONE REFERTO:\s*(\d+)/i)[1] : (text.match(/REFERTO:\s*(\d+)/) ? text.match(/REFERTO:\s*(\d+)/)[1] : "");
     res.codF = text.match(/CODICE FIRMA REFERTO:\s*(\d+)/i) ? text.match(/CODICE FIRMA REFERTO:\s*(\d+)/i)[1] : (text.match(/FIRMA REFERTO:\s*(\d+)/) ? text.match(/FIRMA REFERTO:\s*(\d+)/)[1] : "");
-    
+
     res.arb1 = extractField(text, "Primo arbitro:") || extractField(text, "I Arbitro:");
     res.arb2 = extractField(text, "II Arbitro:") || extractField(text, "Secondo arbitro:");
-    
-    res.categoria = text.match(/gara \d+\s+(.*?)\s+-/i) ? text.match(/gara \d+\s+(.*?)\s+-/i)[1].trim() : "Territoriale";
+
+    res.categoria = text.match(/gara \d+\s+(.*?)\s+-/i) ? normalizeText_(text.match(/gara \d+\s+(.*?)\s+-/i)[1]) : "Territoriale";
     return res;
   } catch (e) { return null; }
 }
@@ -389,21 +462,34 @@ function parseRegionaleStandard(html) {
   var text = cleanEmail(html);
   var res = { codA: "-", codF: "-" };
   try {
-    var matchGara = text.match(/Gara numero (\d+)/);
+    var matchGara = text.match(/Gara numero (\d+)/i);
     if (!matchGara) return null;
     res.numeroGara = matchGara[1];
-    res.data = text.match(/(\d{2}[-\/]\d{2}[-\/]\d{4})/)[1].replace(/-/g, "/");
-    res.ora = text.match(/(\d{2}:\d{2})/)[1];
-    var lines = text.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+
+    // Estrazione data corretta per formati TieBreak normalizzati (es: "01 - 11 - 2025" o "01/11/2025")
+    var mData = text.match(/(\d{2}\s*[-\/]\s*\d{2}\s*[-\/]\s*\d{4})/);
+    if (mData) {
+      res.data = mData[1].replace(/\s/g, "").replace(/-/g, "/");
+    }
+
+    var mOra = text.match(/(\d{2}[:\.]\d{2})/);
+    if (mOra) res.ora = mOra[1].replace(".", ":");
+
+    var lines = text.split('\n').map(s => normalizeText_(s)).filter(s => s.length > 0);
     var capIndex = lines.findIndex(l => l.match(/\d{5}$/));
     if (capIndex > 1) {
-      var p = lines[capIndex - 1].split(" - ");
-      var mid = Math.ceil(p.length / 2);
-      res.squadraCasa = p.slice(0, mid).join(" - ").trim();
-      res.squadraOspite = p.slice(mid).join(" - ").trim();
+      var teamLine = lines[capIndex - 1];
+      var pair = splitTeamsSmart_(teamLine);
+      if (pair) {
+        res.squadraCasa = pair.casa;
+        res.squadraOspite = pair.ospite;
+      }
       res.luogo = lines[capIndex];
     }
-    res.categoria = text.match(/Gara numero \d+\s+(.*?)\s+del/i)[1].trim();
+
+    var mCat = text.match(/Gara numero \d+\s+(.*?)\s+del/i);
+    if (mCat) res.categoria = normalizeText_(mCat[1]);
+
     res.arb1 = extractField(text, "1° arbitro:");
     res.arb2 = extractField(text, "2° arbitro:");
     return res;
@@ -415,15 +501,18 @@ function parseSpostamento(html) {
   var res = {};
   try {
     var matchGara = text.match(/gara:\s*([A-Z0-9\s\-]+)\s*e['\s]/i);
-    res.numeroGara = matchGara ? matchGara[1].trim() : null;
+    res.numeroGara = matchGara ? normalizeText_(matchGara[1]) : null;
+
     var matchData = text.match(/al giorno:\s*\w+\s*(\d{2}\/\d{2}\/\d{4})/i);
     res.data = matchData ? matchData[1] : null;
-    var matchOra = text.match(/ore:\s*(\d{1,2}\.\d.2})/i); 
+
+    var matchOra = text.match(/ore:\s*(\d{1,2}[.:]\d{2})/i);
     res.ora = matchOra ? matchOra[1].replace('.', ':') : null;
-    var lines = text.split('\n');
+
+    var lines = text.split('\n').map(s => normalizeText_(s));
     for (var i = 0; i < lines.length; i++) {
-      if (lines[i].includes("ore:")) {
-        if (lines[i + 1] && lines[i + 1].trim() !== "" && !lines[i + 1].includes("Mail generata")) {
+      if (lines[i].toLowerCase().includes("ore:")) {
+        if (lines[i + 1] && lines[i + 1].trim() !== "" && !lines[i + 1].toLowerCase().includes("mail generata")) {
           res.luogo = lines[i + 1].trim();
           break;
         }
@@ -434,13 +523,23 @@ function parseSpostamento(html) {
 }
 
 function cleanEmail(html) {
-  return html.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/=3D/g, '=').replace(/=20/g, ' ').replace(/=\r?\n/g, '').replace(/&nbsp;/g, ' ').replace(/\n\s*\n/g, '\n');
+  var s = String(html || "")
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/=3D/g, '=')
+    .replace(/=20/g, ' ')
+    .replace(/=\r?\n/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\r/g, '\n')
+    .replace(/\n\s*\n/g, '\n');
+  s = s.split('\n').map(line => normalizeText_(line)).join('\n');
+  return s;
 }
 
 function extractField(text, label) {
   var safeLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   var m = text.match(new RegExp(safeLabel + "\\s*([^\\n\\r]+)", "i"));
-  return m ? m[1].trim() : "";
+  return m ? normalizeText_(m[1]) : "";
 }
 
 function parseDateCell(v) {
