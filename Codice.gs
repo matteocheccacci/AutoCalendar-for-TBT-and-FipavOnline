@@ -1,7 +1,7 @@
 const CALENDAR_NAME = "Partite - AC";
 const MAJOR_VERSION = 0;
 const MINOR_VERSION = 5;
-const PATCH_VERSION = 3;
+const PATCH_VERSION = 4;
 const githubUrl = "https://github.com/matteocheccacci/AutoCalendar-for-TBT-and-FipavOnline";
 
 function getRawFileUrl_(fileName) {
@@ -10,7 +10,7 @@ function getRawFileUrl_(fileName) {
 }
 
 function fetchRemoteCodeText_() {
-  const urls = [getRawFileUrl_("Codice.gs"), getRawFileUrl_("Codice.gs")];
+  const urls = [getRawFileUrl_("Codice.gs"), getRawFileUrl_("Code.gs"), getRawFileUrl_("Code.js"), getRawFileUrl_("Codice.js")];
   let lastErr = null;
 
   for (let i = 0; i < urls.length; i++) {
@@ -30,23 +30,36 @@ function fetchRemoteCodeText_() {
   throw lastErr || new Error("Impossibile scaricare il file remoto.");
 }
 
+function normalizeGaraId_(v) {
+  if (v == null) return "";
+  return String(v)
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .replace(/\s*-\s*/g, " - ")
+    .trim();
+}
+
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('🏐 AutoCalendar')
-      .addItem('Sincronizzazione Manuale', 'manualSync')
-      .addSeparator()
-      .addItem('Configurazione Iniziale Completa', 'setupTrigger')
-      .addSeparator()
-      .addSubMenu(SpreadsheetApp.getUi().createMenu('Impostazioni Singole')
-        .addItem('Imposta il Tuo Nome', 'setUserName')
-        .addItem('Imposta API Gemini', 'setGeminiKey')
-        .addItem('Cambia Frequenza Aggiornamento', 'setFrequency')
-        .addItem('Gestisci Invitati Calendario', 'setGuests'))
-      .addSeparator()
-      .addItem('Verifica Aggiornamenti', 'checkUpdates')
-      .addItem('Info', 'showInfo')
-      .addToUi();
+    .addItem('Sincronizzazione Manuale', 'manualSync')
+    .addSeparator()
+    .addItem('Configurazione Iniziale Completa', 'setupTrigger')
+    .addSeparator()
+    .addSubMenu(SpreadsheetApp.getUi().createMenu('Impostazioni Singole')
+      .addItem('Imposta il Tuo Nome', 'setUserName')
+      .addItem('Imposta API Gemini', 'setGeminiKey')
+      .addItem('Cambia Frequenza Aggiornamento', 'setFrequency')
+      .addItem('Gestisci Invitati Calendario', 'setGuests'))
+    .addSeparator()
+    .addItem('Verifica Aggiornamenti', 'checkUpdatesManual')
+    .addItem('Info', 'showInfo')
+    .addToUi();
 
-  checkUpdates();
+  checkUpdates(false);
+}
+
+function checkUpdatesManual() {
+  checkUpdates(true);
 }
 
 function getUpdateAvailable() {
@@ -74,13 +87,21 @@ function getUpdateAvailable() {
   return { isNewer: false };
 }
 
-function checkUpdates() {
+function checkUpdates(showIfUpdated) {
   const updateInfo = getUpdateAvailable();
   if (updateInfo.isNewer) {
     const ui = SpreadsheetApp.getUi();
     ui.alert(
       '🚀 Aggiornamento Disponibile',
-      `Nuova versione: ${updateInfo.version}\nVersione attuale: ${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}\n\nScarica l'ultima versione da GitHub.`,
+      `Nuova versione: ${updateInfo.version}\nVersione attuale: ${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}\n\nScarica l'ultima versione da GitHub, trovi il link nel menu "Info".`,
+      ui.ButtonSet.OK
+    );
+  }
+  else if (showIfUpdated) {
+    const ui = SpreadsheetApp.getUi();
+    ui.alert(
+      '🔝 Sei aggiornato!',
+      `Ultima versione disponibile: ${updateInfo.version}\nVersione attuale: ${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}`,
       ui.ButtonSet.OK
     );
   }
@@ -178,74 +199,84 @@ function syncGmailToSheetAndCalendar(customQuery) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Arbitro") || SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
   var apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
 
+  var allMsgs = [];
   threads.forEach(thread => {
-    thread.getMessages().forEach(msg => {
-      var htmlBody = msg.getBody();
-      var from = msg.getFrom().toLowerCase();
-      var subject = (msg.getSubject() || "").toUpperCase();
-      var isRegionale = from.includes("tiebreaktech") || htmlBody.includes("TieBreak");
+    thread.getMessages().forEach(m => allMsgs.push(m));
+  });
 
-      var dataGara = null;
-      if (subject.includes("VARIAZIONE") || subject.includes("SPOSTAMENTO")) {
-        dataGara = parseSpostamento(htmlBody);
-      } else {
-        dataGara = isRegionale ? parseRegionaleStandard(htmlBody) : parseTerritorialeStandard(htmlBody);
+  allMsgs.sort((a, b) => a.getDate().getTime() - b.getDate().getTime());
+
+  allMsgs.forEach(msg => {
+    var htmlBody = msg.getBody();
+    var from = msg.getFrom().toLowerCase();
+    var subject = (msg.getSubject() || "").toUpperCase();
+    var isRegionale = from.includes("tiebreaktech") || htmlBody.includes("TieBreak");
+
+    var dataGara = null;
+    if (subject.includes("VARIAZIONE") || subject.includes("SPOSTAMENTO")) {
+      dataGara = parseSpostamento(htmlBody);
+    } else {
+      dataGara = isRegionale ? parseRegionaleStandard(htmlBody) : parseTerritorialeStandard(htmlBody);
+    }
+
+    if (apiKey) {
+      var aiData = callGeminiAI(htmlBody, apiKey);
+      if (aiData) {
+        if (!dataGara) dataGara = aiData;
+        else {
+          if (!dataGara.ora || dataGara.ora == "") dataGara.ora = aiData.ora;
+          if (!dataGara.codA || dataGara.codA == "") dataGara.codA = aiData.codA;
+          if (!dataGara.codF || dataGara.codF == "") dataGara.codF = aiData.codF;
+          if (!dataGara.luogo || dataGara.luogo == "") dataGara.luogo = aiData.luogo;
+        }
       }
+    }
 
-      if (apiKey) {
-        var aiData = callGeminiAI(htmlBody, apiKey);
-        if (aiData) {
-          if (!dataGara) dataGara = aiData;
-          else {
-            if (!dataGara.ora || dataGara.ora == "") dataGara.ora = aiData.ora;
-            if (!dataGara.codA || dataGara.codA == "") dataGara.codA = aiData.codA;
-            if (!dataGara.codF || dataGara.codF == "") dataGara.codF = aiData.codF;
-            if (!dataGara.luogo || dataGara.luogo == "") dataGara.luogo = aiData.luogo;
-          }
+    if (dataGara && dataGara.numeroGara) {
+      var dataValues = sheet.getDataRange().getValues();
+      var rowIndex = -1;
+
+      var targetId = normalizeGaraId_(dataGara.numeroGara);
+      for (var i = 1; i < dataValues.length; i++) {
+        var sheetId = normalizeGaraId_(dataValues[i][6]);
+        if (sheetId && (sheetId === targetId || sheetId.includes(targetId) || targetId.includes(sheetId))) {
+          rowIndex = i + 1;
+          break;
         }
       }
 
-      if (dataGara && dataGara.numeroGara) {
-        var dataValues = sheet.getDataRange().getValues();
-        var rowIndex = -1;
+      var finalCodA = isRegionale ? "-" : (dataGara.codA || "-");
+      var finalCodF = isRegionale ? "-" : (dataGara.codF || "-");
 
-        for (var i = 1; i < dataValues.length; i++) {
-          if (String(dataValues[i][6]).includes(String(dataGara.numeroGara))) { rowIndex = i + 1; break; }
-        }
-
-        var finalCodA = isRegionale ? "-" : (dataGara.codA || "-");
-        var finalCodF = isRegionale ? "-" : (dataGara.codF || "-");
-
-        if (rowIndex !== -1) {
-          var oldRow = dataValues[rowIndex - 1];
-          var rowData = [
-            dataGara.data || oldRow[0],
-            dataGara.ora || oldRow[1],
-            dataGara.luogo || oldRow[2],
-            dataGara.squadraCasa || oldRow[3],
-            dataGara.squadraOspite || oldRow[4],
-            dataGara.categoria || oldRow[5],
-            oldRow[6],
-            finalCodA, finalCodF,
-            dataGara.arb1 || oldRow[9],
-            dataGara.arb2 || oldRow[10],
-            ""
-          ];
-          sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
-        } else if (!subject.includes("VARIAZIONE") && !subject.includes("SPOSTAMENTO")) {
-          var rowDataNew = [
-            dataGara.data, dataGara.ora, dataGara.luogo,
-            dataGara.squadraCasa, dataGara.squadraOspite,
-            dataGara.categoria, dataGara.numeroGara,
-            finalCodA, finalCodF,
-            dataGara.arb1 || "", dataGara.arb2 || "", ""
-          ];
-          sheet.appendRow(rowDataNew);
-        }
-
-        msg.markRead();
+      if (rowIndex !== -1) {
+        var oldRow = dataValues[rowIndex - 1];
+        var rowData = [
+          dataGara.data || oldRow[0],
+          dataGara.ora || oldRow[1],
+          dataGara.luogo || oldRow[2],
+          dataGara.squadraCasa || oldRow[3],
+          dataGara.squadraOspite || oldRow[4],
+          dataGara.categoria || oldRow[5],
+          oldRow[6],
+          finalCodA, finalCodF,
+          dataGara.arb1 || oldRow[9],
+          dataGara.arb2 || oldRow[10],
+          ""
+        ];
+        sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
+      } else if (!subject.includes("VARIAZIONE") && !subject.includes("SPOSTAMENTO")) {
+        var rowDataNew = [
+          dataGara.data, dataGara.ora, dataGara.luogo,
+          dataGara.squadraCasa, dataGara.squadraOspite,
+          dataGara.categoria, dataGara.numeroGara,
+          finalCodA, finalCodF,
+          dataGara.arb1 || "", dataGara.arb2 || "", ""
+        ];
+        sheet.appendRow(rowDataNew);
       }
-    });
+
+      msg.markRead();
+    }
   });
 
   createCalendarEvents();
