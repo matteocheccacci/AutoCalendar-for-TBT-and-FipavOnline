@@ -1,12 +1,12 @@
 /**
  * SISTEMA AUTOMATICO DI SINCRONIZZAZIONE GARE 
- * Versione: 0.4.3
+ * Versione: 0.4.4
  */
 
 const CALENDAR_NAME = "Partite - AC";
 const MAJOR_VERSION = 0;
 const MINOR_VERSION = 4;
-const PATCH_VERSION = 3;
+const PATCH_VERSION = 4;
 const githubUrl = "https://github.com/matteocheccacci/AutoCalendar-for-TBT-and-FipavOnline";
 
 function onOpen() {
@@ -16,6 +16,7 @@ function onOpen() {
       .addItem('Configurazione Iniziale Completa', 'setupTrigger')
       .addSeparator()
       .addSubMenu(SpreadsheetApp.getUi().createMenu('Impostazioni Singole')
+        .addItem('Imposta il Tuo Nome', 'setUserName')
         .addItem('Imposta API Gemini', 'setGeminiKey')
         .addItem('Cambia Frequenza Aggiornamento', 'setFrequency')
         .addItem('Gestisci Invitati Calendario', 'setGuests'))
@@ -26,7 +27,7 @@ function onOpen() {
 
 function showInfo() {
   const annoCorrente = new Date().getFullYear();
-  const versione = MAJOR_VERSION + "." + MINOR_VERSION + "." + PATCH_VERSION;
+  const versione = `${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}`;
 
   const htmlContent = `
     <div style="font-family: sans-serif; line-height: 1.5; color: #333; text-align: center;">
@@ -50,6 +51,22 @@ function showInfo() {
 
   const htmlOutput = HtmlService.createHtmlOutput(htmlContent).setWidth(400).setHeight(350);
   SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Informazioni su AutoCalendar');
+}
+
+/**
+ * IMPOSTAZIONI E CONFIGURAZIONE
+ */
+
+function setUserName() {
+  var ui = SpreadsheetApp.getUi();
+  var res = ui.prompt('Configurazione Nome', 'Inserisci COGNOME e NOME (es: ROSSI MARIO):', ui.ButtonSet.OK_CANCEL);
+  if (res.getSelectedButton() == ui.Button.OK) {
+    var name = res.getResponseText().trim();
+    if (name !== "") {
+      PropertiesService.getScriptProperties().setProperty('USER_FULL_NAME', name);
+      ui.alert('✅ Nome salvato: ' + name);
+    }
+  }
 }
 
 function setGeminiKey() {
@@ -84,10 +101,14 @@ function setGuests() {
 }
 
 function setupTrigger() {
-  setGeminiKey(); setFrequency(); setGuests(); createInfoTab();
+  setUserName(); setGeminiKey(); setFrequency(); setGuests();
   getOrCreateCalendar();
   SpreadsheetApp.getUi().alert('✅ Configurazione Iniziale completata.');
 }
+
+/**
+ * CORE LOGIC
+ */
 
 function manualSync() {
   var query = '(from:info@tiebreaktech.com OR subject:"Designazione gara") newer_than:30d';
@@ -125,8 +146,6 @@ function syncGmailToSheetAndCalendar(customQuery) {
       if (dataGara && dataGara.numeroGara) {
         var currentKey = dataGara.data + "|" + dataGara.numeroGara;
         if (existingKeys.indexOf(currentKey) === -1) {
-          
-          // Se regionale forza "-", altrimenti usa il dato o "-" di fallback
           var finalCodA = isRegionale ? "-" : (dataGara.codA || "-");
           var finalCodF = isRegionale ? "-" : (dataGara.codF || "-");
 
@@ -143,6 +162,68 @@ function syncGmailToSheetAndCalendar(customQuery) {
     });
   });
   createCalendarEvents();
+}
+
+function createCalendarEvents() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Arbitro") || SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var cal = getOrCreateCalendar();
+  var data = sheet.getDataRange().getValues();
+  var yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+  var guests = PropertiesService.getScriptProperties().getProperty('CALENDAR_GUESTS');
+  var myName = (PropertiesService.getScriptProperties().getProperty('USER_FULL_NAME') || "").toLowerCase();
+  
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (!row[0] || isNaN(new Date(row[0]).getTime())) continue;
+    var d = new Date(row[0]);
+    if (d < yesterday) continue;
+    
+    var t = row[1].toString().split(":");
+    var start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), t[0], t[1]);
+    var title = "🏐 " + row[3] + " vs " + row[4];
+    
+    if (cal.getEvents(start, new Date(start.getTime() + 10800000), {search: title}).length === 0) {
+      
+      var descLines = [];
+      descLines.push("N. Gara: " + row[6]);
+      descLines.push("Categoria: " + row[5]);
+
+      var arb1 = String(row[9]).trim();
+      var arb2 = String(row[10]).trim();
+      var arb1Lower = arb1.toLowerCase();
+      var arb2Lower = arb2.toLowerCase();
+
+      // Logica Arbitri: Confronto flessibile (se il tuo nome è contenuto nella cella)
+      var amIArb1 = myName !== "" && (arb1Lower.includes(myName) || myName.includes(arb1Lower));
+      var amIArb2 = myName !== "" && (arb2Lower.includes(myName) || myName.includes(arb2Lower));
+
+      if (amIArb1) {
+        if (arb2 && arb2 !== "" && arb2 !== "-") descLines.push("Secondo arbitro: " + arb2);
+      } else if (amIArb2) {
+        if (arb1 && arb1 !== "" && arb1 !== "-") descLines.push("Primo arbitro: " + arb1);
+      } else {
+        // Se non trovo match, li scrivo entrambi per sicurezza
+        if (arb1 && arb1 !== "" && arb1 !== "-") descLines.push("Primo arbitro: " + arb1);
+        if (arb2 && arb2 !== "" && arb2 !== "-") descLines.push("Secondo arbitro: " + arb2);
+      }
+
+      // Logica Codici
+      if (row[7] && row[7] !== "-" && row[7] !== "") descLines.push("Codice attivazione: " + row[7]);
+      if (row[8] && row[8] !== "-" && row[8] !== "") descLines.push("Codice firma: " + row[8]);
+
+      var event = cal.createEvent(title, start, new Date(start.getTime() + 10800000), { 
+        location: row[2], 
+        description: descLines.join("\n"), 
+        guests: guests ? guests : null 
+      });
+
+      event.removeAllReminders();
+      event.addPopupReminder(1440);
+      var morningOf = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 8, 0);
+      var minutesToMorning = (start.getTime() - morningOf.getTime()) / 60000;
+      if (minutesToMorning > 0) event.addPopupReminder(minutesToMorning);
+    }
+  }
 }
 
 /**
@@ -210,32 +291,3 @@ function parseTerritorialeStandard(html) {
 function cleanEmail(html) { return html.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/=3D/g, '=').replace(/=20/g, ' ').replace(/=\r?\n/g, '').replace(/&nbsp;/g, ' ').replace(/\n\s*\n/g, '\n'); }
 function extractField(text, label) { var regex = new RegExp(label + "\\s*([A-Z\\s]+)", "i"); var match = text.match(regex); return match ? match[1].split('\n')[0].trim() : ""; }
 function getOrCreateCalendar() { var calendars = CalendarApp.getCalendarsByName(CALENDAR_NAME); if (calendars.length > 0) return calendars[0]; return CalendarApp.createCalendar(CALENDAR_NAME, {timeZone: "Europe/Rome"}); }
-
-function createCalendarEvents() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Arbitro") || SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
-  var cal = getOrCreateCalendar();
-  var data = sheet.getDataRange().getValues();
-  var yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-  var guests = PropertiesService.getScriptProperties().getProperty('CALENDAR_GUESTS');
-  
-  for (var i = 1; i < data.length; i++) {
-    var row = data[i];
-    if (!row[0] || isNaN(new Date(row[0]).getTime())) continue;
-    var d = new Date(row[0]);
-    if (d < yesterday) continue;
-    
-    var t = row[1].toString().split(":");
-    var start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), t[0], t[1]);
-    var title = "🏐 " + row[3] + " vs " + row[4];
-    
-    if (cal.getEvents(start, new Date(start.getTime() + 10800000), {search: title}).length === 0) {
-      var desc = "Gara: " + row[6] + "\nCod. Att: " + row[7] + " | Cod. Fir: " + row[8];
-      var event = cal.createEvent(title, start, new Date(start.getTime() + 10800000), { location: row[2], description: desc, guests: guests ? guests : null });
-      event.removeAllReminders();
-      event.addPopupReminder(1440);
-      var morningOf = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 8, 0);
-      var minutesToMorning = (start.getTime() - morningOf.getTime()) / 60000;
-      if (minutesToMorning > 0) event.addPopupReminder(minutesToMorning);
-    }
-  }
-}
