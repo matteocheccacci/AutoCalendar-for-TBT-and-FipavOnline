@@ -87,8 +87,8 @@ Puoi segnalare bug o suggerire migliorie tramite la sezione **Issues** su GitHub
 ---
 ## ©️ Info Copyright
 
-* **TBT, FWM, Fipav Web Manager sono copyright di TieBreakTech. 
-* **FipavOnline è copyright di Manufacturing Point Software.
+* **TBT, FWM, Fipav Web Manager** sono copyright di **TieBreakTech**. 
+* **FipavOnline** è copyright di **Manufacturing Point Software**.
 ---
 
 **© 2026 KekkoTech Softwares - RefPublic Team** *Sviluppato da Matteo Checcacci*
