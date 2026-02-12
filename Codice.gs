@@ -1,7 +1,7 @@
 const CALENDAR_NAME = "Partite - AC";
 const MAJOR_VERSION = 0;
 const MINOR_VERSION = 4;
-const PATCH_VERSION = 6;
+const PATCH_VERSION = 7;
 const githubUrl = "https://github.com/matteocheccacci/AutoCalendar-for-TBT-and-FipavOnline";
 
 function onOpen() {
@@ -24,20 +24,27 @@ function showInfo() {
   const annoCorrente = new Date().getFullYear();
   const versione = `${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}`;
   const htmlContent = `
-    <div style="font-family: sans-serif; line-height: 1.5; color: #333; text-align: center;">
+    <div style="font-family: sans-serif; line-height: 1.4; color: #333; text-align: center;">
       <h2 style="color: #1a73e8;">🏐 AutoCalendar</h2>
       <p><b>Versione:</b> ${versione}<br>
       <b>Creatore:</b> Matteo Checcacci</p>
-      <p style="font-size: 0.9em;">Il prodotto è concesso in <b>Licenza MIT</b>.</p>
-      <div style="margin: 20px 0;">
+      
+      <div style="font-size: 0.8em; background: #f9f9f9; padding: 10px; border-radius: 5px; text-align: left; margin: 10px 0;">
+        <strong>© Info Copyright:</strong><br>
+        • TBT, FWM, Fipav Web Manager sono copyright di TieBreakTech.<br>
+        • FipavOnline è copyright di Manufacturing Point Software.
+      </div>
+
+      <p style="font-size: 0.85em;">Prodotto concesso in <b>Licenza MIT</b>.</p>
+      <div style="margin: 15px 0;">
         <a href="${githubUrl}" target="_blank" 
-           style="background-color: #24292e; color: white; padding: 10px 20px; 
+           style="background-color: #24292e; color: white; padding: 8px 16px; 
                   text-decoration: none; border-radius: 5px; font-weight: bold;">
-           Vai su GitHub / Segnala Bug
+           GitHub / Segnala Bug
         </a>
       </div>
       <hr style="border: 0; border-top: 1px solid #eee;">
-      <p style="font-size: 0.8em; color: #666;">
+      <p style="font-size: 0.75em; color: #666;">
         © ${annoCorrente} KekkoTech Softwares - RefPublic Team
       </p>
     </div>
