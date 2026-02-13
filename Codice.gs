@@ -93,7 +93,21 @@ function checkUpdates(showIfUpdated) {
 function showInfo() {
   const anno = new Date().getFullYear();
   const versione = `${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}`;
-  const html = `<div style="font-family: sans-serif; line-height: 1.4; color: #333; text-align: center;"><h2 style="color: #1a73e8;">🏐 AutoCalendar</h2><p><b>Versione:</b> ${versione}<br><b>Creatore:</b> Matteo Checcacci</p><div style="font-size: 0.8em; background: #f9f9f9; padding: 10px; border-radius: 5px; text-align: left; margin: 10px 0;"><strong>© Info Copyright:</strong><br>• TBT, FWM, Fipav Web Manager sono copyright di TieBreakTech.<br>• FipavOnline è copyright di Manufacturing Point Software.</div><p style="font-size: 0.85em;">Prodotto concesso in <b>Licenza MIT</b>.</p><div style="margin: 15px 0;"><a href="${githubUrl}" target="_blank" style="background-color: #24292e; color: white; padding: 8px 16px; text-decoration: none; border-radius: 5px; font-weight: bold;">GitHub / Segnala Bug</a></div><hr style="border: 0; border-top: 1px solid #eee;"><p style="font-size: 0.75em; color: #666;">© ${anno} KekkoTech Softwares - <a href="https://refpublic.it>RefPublic</a></p></div>`;
+  const html = `<div style="font-family: sans-serif; line-height: 1.4; color: #333; text-align: center;">
+    <h2 style="color: #1a73e8;">🏐 AutoCalendar</h2>
+    <p><b>Versione:</b> ${versione}<br><b>Creatore:</b> Matteo Checcacci</p>
+    <div style="font-size: 0.8em; background: #f9f9f9; padding: 10px; border-radius: 5px; text-align: left; margin: 10px 0;">
+      <strong>© Info Copyright:</strong><br>
+      • TBT, FWM, Fipav Web Manager sono copyright di TieBreakTech.<br>
+      • FipavOnline è copyright di Manufacturing Point Software.
+    </div>
+    <p style="font-size: 0.85em;">Prodotto concesso in <b>Licenza MIT</b>.</p>
+    <div style="margin: 15px 0;">
+      <a href="${githubUrl}" target="_blank" style="background-color: #24292e; color: white; padding: 8px 16px; text-decoration: none; border-radius: 5px; font-weight: bold;">GitHub / Segnala Bug</a>
+    </div>
+    <hr style="border: 0; border-top: 1px solid #eee;">
+    <p style="font-size: 0.75em; color: #666;">© ${anno} KekkoTech Softwares - <a href="https://refpublic.it/" target="_blank">RefPublic</a></p>
+  </div>`;
   SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput(html).setWidth(400).setHeight(350), 'Informazioni su AutoCalendar');
 }
 
