@@ -1,8 +1,24 @@
 const CALENDAR_NAME = "Partite - AC";
 const MAJOR_VERSION = 0;
-const MINOR_VERSION = 5;
-const PATCH_VERSION = 6;
+const MINOR_VERSION = 6;
+const PATCH_VERSION = 0;
+const CURRENT_VERSION = `${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}`;
 const githubUrl = "https://github.com/matteocheccacci/AutoCalendar-for-TBT-and-FipavOnline";
+
+const WHATS_NEW_TEXT = `
+  <ul>
+    <li><b>Spostamento gare FWM:</b> E' stato aggiunto il supporto per lo spostamento gare di Fipav Web Manager.</li>
+    <li><b>Formattazione Nomi:</b> I nomi degli arbitri vengono ora convertiti automaticamente in formato leggibile (es: Rossi Mario).</li>
+    <li><b>Ordinamento Automatico:</b> La tabella viene riordinata cronologicamente dopo ogni sincronizzazione.</li>
+    <li><b>Notifiche Aggiornamento:</b> Aggiunto il riquadro "Novità" per mostrare le modifiche nella nuova versione.</li>
+    <li><b>Correzione formato numero gare:</b> E' stato corretto il formato del numero delle gare per fare in modo che non vengano rimossi eventuali zeri iniziali.</li>
+    <li><b>Notifiche Multiple:</b> Ora puoi inserire più promemoria extra separati dalla virgola (es: 60, 120, 1440).</li>
+  </ul>`;
+
+const updtMailBody = `
+    <p>È disponibile la nuova versione <b>${CURRENT_VERSION}</b> su GitHub.</p>
+    <p>Installala copiando il codice da <a href="${githubUrl}">GitHub</a>.</p>
+  `;
 
 function getRawFileUrl_(fileName) {
   const base = githubUrl.replace("https://github.com/", "https://raw.githubusercontent.com/");
@@ -26,7 +42,7 @@ function fetchRemoteCodeText_() {
       lastErr = e;
     }
   }
-  throw lastErr || new Error("Impossibile scaricare il file remoto.");
+  throw lastErr || new Error("Impossibile scaricare le file remoto.");
 }
 
 function normalizeGaraId_(v) {
@@ -42,6 +58,20 @@ function normalizeText_(s) {
     .trim();
 }
 
+function capitalizeName_(name) {
+  if (!name || typeof name !== 'string') return name;
+  return name.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}
+
+function sortSheetByDateTime_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Arbitro") || ss.getSheets()[0];
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+  const range = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn());
+  range.sort([{column: 1, ascending: true}, {column: 2, ascending: true}]);
+}
+
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('🏐 AutoCalendar')
     .addItem('Sincronizzazione Manuale', 'manualSync')
@@ -52,12 +82,46 @@ function onOpen() {
       .addItem('Imposta il Tuo Nome', 'setUserName')
       .addItem('Imposta API Gemini', 'setGeminiKey')
       .addItem('Cambia Frequenza Aggiornamento', 'setFrequency')
-      .addItem('Gestisci Invitati Calendario', 'setGuests'))
+      .addItem('Gestisci Invitati Calendario', 'setGuests')
+      .addItem('Imposta Notifiche Extra', 'setExtraReminder'))
     .addSeparator()
     .addItem('Verifica Aggiornamenti', 'checkUpdatesManual')
+    .addItem('Novità', 'checkWhatsNew')
     .addItem('Info', 'showInfo')
     .addToUi();
+  
   checkUpdates(false);
+  Utilities.sleep(1000);
+  checkWhatsNew(false);
+}
+
+function checkWhatsNew(isManual = true) {
+  const props = PropertiesService.getScriptProperties();
+  const lastVersion = props.getProperty('LAST_INSTALLED_VERSION');
+  
+  if (!isManual && lastVersion === CURRENT_VERSION) {
+    return;
+  }
+
+  const html = `
+    <div style="font-family: sans-serif; padding: 10px;">
+      <h2 style="color: #1a73e8;">✨ Novità Versione ${CURRENT_VERSION}</h2>
+      ${WHATS_NEW_TEXT}
+      <p style="font-size: 0.9em; color: #666;">Se non hai tempo ora, clicca il tasto sotto per ricevere le novità via email.</p>
+      <div style="margin-top: 20px; text-align: center;">
+        <input type="button" value="Inviamele via Email" onclick="google.script.run.withSuccessHandler(function(){google.script.host.close();}).sendWhatsNewEmail();" style="padding: 10px; background-color: #1a73e8; color: white; border: none; border-radius: 4px; cursor: pointer;">
+        <input type="button" value="Chiudi" onclick="google.script.host.close();" style="padding: 10px; margin-left: 10px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;">
+      </div>
+    </div>`;
+  const ui = HtmlService.createHtmlOutput(html).setWidth(420).setHeight(320);
+  SpreadsheetApp.getUi().showModalDialog(ui, "AutoCalendar - Novità");
+  props.setProperty('LAST_INSTALLED_VERSION', CURRENT_VERSION);
+}
+
+function sendWhatsNewEmail() {
+  const email = Session.getEffectiveUser().getEmail();
+  const body = `<h2>AutoCalendar - Novità Versione ${CURRENT_VERSION}</h2>${WHATS_NEW_TEXT}<br><p>Segnala un Bug su GitHub: ${githubUrl}</p>`;
+  GmailApp.sendEmail(email, `AutoCalendar: Novità versione ${CURRENT_VERSION}`, "", {htmlBody: body});
 }
 
 function checkUpdatesManual() { checkUpdates(true); }
@@ -84,15 +148,15 @@ function checkUpdates(showIfUpdated) {
   const updateInfo = getUpdateAvailable();
   const ui = SpreadsheetApp.getUi();
   if (updateInfo.isNewer) {
-    ui.alert('🚀 Aggiornamento Disponibile', `Nuova versione: ${updateInfo.version}\nVersione attuale: ${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}\n\nScarica l'ultima versione da GitHub.`, ui.ButtonSet.OK);
+    ui.alert('🚀 Aggiornamento Disponibile', `Nuova versione: ${updateInfo.version}\nVersione attuale: ${CURRENT_VERSION}\n\nScarica l'ultima versione da GitHub.`, ui.ButtonSet.OK);
   } else if (showIfUpdated) {
-    ui.alert('🔝 Sei aggiornato!', `Versione attuale: ${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}`, ui.ButtonSet.OK);
+    ui.alert('🔝 Sei aggiornato!', `Versione attuale: ${CURRENT_VERSION}`, ui.ButtonSet.OK);
   }
 }
 
 function showInfo() {
   const anno = new Date().getFullYear();
-  const versione = `${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}`;
+  const versione = CURRENT_VERSION;
   const html = `<div style="font-family: sans-serif; line-height: 1.4; color: #333; text-align: center;">
     <h2 style="color: #1a73e8;">🏐 AutoCalendar</h2>
     <p><b>Versione:</b> ${versione}<br><b>Creatore:</b> Matteo Checcacci</p>
@@ -113,7 +177,8 @@ function showInfo() {
 
 function setUserName() {
   var ui = SpreadsheetApp.getUi();
-  var res = ui.prompt('Nome', 'Inserisci COGNOME NOME:', ui.ButtonSet.OK_CANCEL);
+  var current = PropertiesService.getScriptProperties().getProperty('USER_FULL_NAME') || "Non impostato";
+  var res = ui.prompt('Impostazione Nome', 'Valore attuale: ' + current + '\n\nInserisci COGNOME NOME:', ui.ButtonSet.OK_CANCEL);
   if (res.getSelectedButton() == ui.Button.OK) {
     var v = (res.getResponseText() || "").trim();
     if (v) PropertiesService.getScriptProperties().setProperty('USER_FULL_NAME', v);
@@ -122,7 +187,8 @@ function setUserName() {
 
 function setGeminiKey() {
   var ui = SpreadsheetApp.getUi();
-  var res = ui.prompt('API Gemini', 'Inserisci API Key:', ui.ButtonSet.OK_CANCEL);
+  var current = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY') ? "Chiave presente (nascosta)" : "Non impostata";
+  var res = ui.prompt('Impostazione API Gemini', 'Stato attuale: ' + current + '\n\nInserisci la nuova API Key:', ui.ButtonSet.OK_CANCEL);
   if (res.getSelectedButton() == ui.Button.OK) {
     var v = (res.getResponseText() || "").trim();
     if (v) PropertiesService.getScriptProperties().setProperty('GEMINI_API_KEY', v);
@@ -131,7 +197,12 @@ function setGeminiKey() {
 
 function setFrequency() {
   var ui = SpreadsheetApp.getUi();
-  var res = ui.prompt('Frequenza', 'Ore (1, 2, 4, 6, 8, 12):', ui.ButtonSet.OK_CANCEL);
+  var triggers = ScriptApp.getProjectTriggers();
+  var currentFreq = "Non impostata";
+  triggers.forEach(t => { if (t.getHandlerFunction() == 'syncGmailToSheetAndCalendar') {
+    currentFreq = "Trigger attivo"; 
+  }});
+  var res = ui.prompt('Frequenza Aggiornamento', 'Stato: ' + currentFreq + '\n\nInserisci ore (1, 2, 4, 6, 8, 12):', ui.ButtonSet.OK_CANCEL);
   if (res.getSelectedButton() == ui.Button.OK) {
     var freq = parseInt((res.getResponseText() || "").trim(), 10);
     var allowed = { 1: true, 2: true, 4: true, 6: true, 8: true, 12: true };
@@ -139,7 +210,6 @@ function setFrequency() {
       ui.alert('Valore non valido', 'Inserisci solo: 1, 2, 4, 6, 8, 12', ui.ButtonSet.OK);
       return;
     }
-    var triggers = ScriptApp.getProjectTriggers();
     triggers.forEach(t => { if (t.getHandlerFunction() == 'syncGmailToSheetAndCalendar') ScriptApp.deleteTrigger(t); });
     ScriptApp.newTrigger('syncGmailToSheetAndCalendar').timeBased().everyHours(freq).create();
   }
@@ -147,9 +217,22 @@ function setFrequency() {
 
 function setGuests() {
   var ui = SpreadsheetApp.getUi();
-  var res = ui.prompt('Invitati', 'Email (separate da virgola):', ui.ButtonSet.OK_CANCEL);
+  var current = PropertiesService.getScriptProperties().getProperty('CALENDAR_GUESTS') || "Nessuno";
+  var res = ui.prompt('Gestione Invitati', 'Attuali: ' + current + '\n\nInserisci Email (separate da virgola):', ui.ButtonSet.OK_CANCEL);
   if (res.getSelectedButton() == ui.Button.OK) {
     PropertiesService.getScriptProperties().setProperty('CALENDAR_GUESTS', (res.getResponseText() || "").trim());
+  }
+}
+
+function setExtraReminder() {
+  var ui = SpreadsheetApp.getUi();
+  var current = PropertiesService.getScriptProperties().getProperty('EXTRA_REMINDER_MINUTES') || "Nessuno";
+  var res = ui.prompt('Notifiche Extra Personalizzate', 'Valori attuali (minuti prima): ' + current + '\n\nInserisci i minuti di anticipo separati dalla virgola (es: 60, 120, 1440):', ui.ButtonSet.OK_CANCEL);
+  if (res.getSelectedButton() == ui.Button.OK) {
+    var val = (res.getResponseText() || "").trim();
+    if (val) {
+      PropertiesService.getScriptProperties().setProperty('EXTRA_REMINDER_MINUTES', val);
+    }
   }
 }
 
@@ -158,6 +241,7 @@ function setupTrigger() {
   setGeminiKey();
   setFrequency();
   setGuests();
+  setExtraReminder();
   getOrCreateCalendar();
   SpreadsheetApp.getUi().alert('✅ Configurazione completata.');
 }
@@ -193,7 +277,7 @@ function syncGmailToSheetAndCalendar(customQuery) {
 
     var dataGara = null;
     if (subject.includes("VARIAZIONE") || subject.includes("SPOSTAMENTO")) {
-      dataGara = parseSpostamento(htmlBody);
+      dataGara = isRegionale ? parseSpostamentoTBT(htmlBody) : parseSpostamentoFipavOnline(htmlBody);
     } else {
       dataGara = isRegionale ? parseRegionaleStandard(htmlBody) : parseTerritorialeStandard(htmlBody);
     }
@@ -212,6 +296,8 @@ function syncGmailToSheetAndCalendar(customQuery) {
           if (aiData.data) dataGara.data = aiData.data;
           if (aiData.numeroGara) dataGara.numeroGara = aiData.numeroGara;
           if (aiData.categoria) dataGara.categoria = aiData.categoria;
+          if (aiData.arb1) dataGara.arb1 = aiData.arb1;
+          if (aiData.arb2) dataGara.arb2 = aiData.arb2;
         }
       }
     }
@@ -249,11 +335,15 @@ function syncGmailToSheetAndCalendar(customQuery) {
           oldRow[6],
           finalCodA,
           finalCodF,
-          dataGara.arb1 || oldRow[9],
-          dataGara.arb2 || oldRow[10],
+          capitalizeName_(dataGara.arb1 || oldRow[9]),
+          capitalizeName_(dataGara.arb2 || oldRow[10]),
           ""
         ];
-        sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
+        
+        var targetRange = sheet.getRange(rowIndex, 1, 1, rowData.length);
+        sheet.getRange(rowIndex, 7, 1, 3).setNumberFormat("@");
+        targetRange.setValues([rowData]);
+        
       } else if (!subject.includes("VARIAZIONE") && !subject.includes("SPOSTAMENTO")) {
         var rowDataNew = [
           dataGara.data, dataGara.ora, dataGara.luogo,
@@ -261,9 +351,12 @@ function syncGmailToSheetAndCalendar(customQuery) {
           dataGara.categoria, dataGara.numeroGara,
           isRegionale ? "-" : (dataGara.codA || ""),
           isRegionale ? "-" : (dataGara.codF || ""),
-          dataGara.arb1 || "", dataGara.arb2 || "", ""
+          capitalizeName_(dataGara.arb1 || ""), 
+          capitalizeName_(dataGara.arb2 || ""), 
+          ""
         ];
         sheet.appendRow(rowDataNew);
+        sheet.getRange(sheet.getLastRow(), 7, 1, 3).setNumberFormat("@");
         addedCount++;
       }
       msg.markRead();
@@ -271,6 +364,7 @@ function syncGmailToSheetAndCalendar(customQuery) {
   });
 
   SpreadsheetApp.flush();
+  sortSheetByDateTime_();
   const movedCount = createCalendarEvents();
   return { added: addedCount, moved: movedCount };
 }
@@ -301,6 +395,7 @@ function createCalendarEvents() {
   var sheet = ss.getSheetByName("Arbitro") || ss.getSheets()[0];
   var cal = getOrCreateCalendar();
   var data = sheet.getDataRange().getValues();
+  var extraReminder = PropertiesService.getScriptProperties().getProperty('EXTRA_REMINDER_MINUTES');
 
   var now = new Date();
   var yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
@@ -376,6 +471,19 @@ function createCalendarEvents() {
         ev.setLocation(row[2]);
         ev.setDescription(finalDesc);
         ev.setTitle(title);
+        
+        ev.removeAllReminders();
+        ev.addPopupReminder(1440);
+        var morning = new Date(dOnly.getFullYear(), dOnly.getMonth(), dOnly.getDate(), 8, 0);
+        var rem = (start.getTime() - morning.getTime()) / 60000;
+        if (rem > 0) ev.addPopupReminder(rem);
+        
+        if (extraReminder) {
+          extraReminder.split(',').forEach(function(m) {
+            var val = parseInt(m.trim(), 10);
+            if (!isNaN(val)) ev.addPopupReminder(val);
+          });
+        }
       }
       delete eventsMap[garaIdNorm];
     } else {
@@ -388,6 +496,13 @@ function createCalendarEvents() {
       var morning = new Date(dOnly.getFullYear(), dOnly.getMonth(), dOnly.getDate(), 8, 0);
       var rem = (start.getTime() - morning.getTime()) / 60000;
       if (rem > 0) event.addPopupReminder(rem);
+      
+      if (extraReminder) {
+        extraReminder.split(',').forEach(function(m) {
+          var val = parseInt(m.trim(), 10);
+          if (!isNaN(val)) event.addPopupReminder(val);
+        });
+      }
     }
   }
 
@@ -481,7 +596,6 @@ function parseRegionaleStandard(html) {
     if (!matchGara) return null;
     res.numeroGara = matchGara[1];
 
-    // Estrazione data corretta per formati TieBreak normalizzati (es: "01 - 11 - 2025" o "01/11/2025")
     var mData = text.match(/(\d{2}\s*[-\/]\s*\d{2}\s*[-\/]\s*\d{4})/);
     if (mData) {
       res.data = mData[1].replace(/\s/g, "").replace(/-/g, "/");
@@ -494,7 +608,7 @@ function parseRegionaleStandard(html) {
     var capIndex = lines.findIndex(l => l.match(/\d{5}$/));
     if (capIndex > 1) {
       var teamLine = lines[capIndex - 1];
-      var pair = splitTeamsSmart_(teamLine);
+      var pair = splitTeamsSmart_(pair);
       if (pair) {
         res.squadraCasa = pair.casa;
         res.squadraOspite = pair.ospite;
@@ -511,7 +625,7 @@ function parseRegionaleStandard(html) {
   } catch (e) { return null; }
 }
 
-function parseSpostamento(html) {
+function parseSpostamentoFipavOnline(html) {
   var text = cleanEmail(html);
   var res = {};
   try {
@@ -535,6 +649,32 @@ function parseSpostamento(html) {
     }
     return res.numeroGara ? res : null;
   } catch (e) { return null; }
+}
+
+function parseSpostamentoTBT(html) {
+  var text = cleanEmail(html);
+  var res = {};
+  try {
+    var matchGara = text.match(/modifiche alla gara n\.\s*(\d+)/i) || text.match(/Numero:\s*(\d+)/i);
+    if (!matchGara) return null;
+    res.numeroGara = matchGara[1];
+
+    var matchDataOra = text.match(/Data attuale:\s*(\d{4}-\d{2}-\d{2})\s*(\d{2}:\d{2})/i);
+    if (matchDataOra) {
+      var parts = matchDataOra[1].split('-');
+      res.data = parts[2] + "/" + parts[1] + "/" + parts[0];
+      res.ora = matchDataOra[2];
+    }
+
+    var matchImpianto = text.match(/Impianto attuale:\s*([^\n\r]+)/i);
+    if (matchImpianto) {
+      res.luogo = normalizeText_(matchImpianto[1]);
+    }
+
+    return res.numeroGara ? res : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 function cleanEmail(html) {
@@ -581,7 +721,7 @@ function getOrCreateCalendar() {
 
 function callGeminiAI(html, key) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
-  const prompt = `Analizza HTML designazione volley. Estrai dati gara. Rispondi SOLO JSON: {"data":"DD/MM/YYYY","ora":"HH:MM","luogo":"...","squadraCasa":"...","squadraOspite":"...","categoria":"...","numeroGara":"...","codA":"...","codF":"..."}. Testo: ${html}`;
+  const prompt = `Analizza HTML designazione volley. Estrai dati gara. Rispondi SOLO JSON: {"data":"DD/MM/YYYY","ora":"HH:MM","luogo":"...","squadraCasa":"...","squadraOspite":"...","categoria":"...","numeroGara":"...","codA":"...","codF":"...","arb1":"...","arb2":"..."}. Testo: ${html}`;
   try {
     const res = UrlFetchApp.fetch(url, {
       method: "post", contentType: "application/json",
@@ -600,9 +740,11 @@ function checkUpdatesAutomated() {
     const updateInfo = getUpdateAvailable();
     if (updateInfo.isNewer) {
       const myEmail = Session.getEffectiveUser().getEmail();
-      if (myEmail) GmailApp.sendEmail(myEmail, "🚀 Aggiornamento AutoCalendar", "Nuova versione " + updateInfo.version + " disponibile su GitHub. Installala copiando il codice come hai fatto la prima volta!");
+      if (myEmail) {
+      GmailApp.sendEmail(myEmail, "🚀 Aggiornamento AutoCalendar", "", {htmlBody: updtMailBody});
     }
     count = 0;
   }
   props.setProperty('UPDATE_CHECK_COUNT', count.toString());
+}
 }
