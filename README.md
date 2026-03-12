@@ -35,7 +35,7 @@ Per un'estrazione perfetta che distingua squadre da indirizzi o dirigenti, lo sc
 ### 3. Configurazione Finale
 * Torna al Foglio Google e ricarica la pagina.
 * Nel nuovo menù **`🏐 AutoCalendar`**, seleziona **Configurazione Iniziale Completa**.
-* Inserisci il tuo cognome e il tuo nome, inserisci l'API Key se la stai utilizzando, scegli la frequenza (es. ogni 2 ore) e aggiungi eventuali invitati (es. i tuoi familiari).
+* Inserisci il tuo cognome e il tuo nome, inserisci l'API Key se la stai utilizzando, scegli la frequenza (es. ogni 2 ore), aggiungi eventuali invitati (es. i tuoi familiari) e aggiungi le notifiche personalizzate (oltre alle 8.00 del giorno stesso e al giorno precedente all'ora della gara).
 
 ### 4. Come Funziona
 
@@ -68,7 +68,7 @@ Riconosce automaticamente:
 - Designazioni di **Fipav Web Manager (TBT / TieBreakTech)**
 - Designazioni e Spostamenti Gare di **FipavOnline**
 
-### 🔄 Gestione Automatica Variazioni (per ora solo FipavOnline)
+### 🔄 Gestione Automatica Variazioni
 Se arriva una mail di variazione:
 - La gara viene aggiornata nel foglio Excel
 - L’evento corrispondente nel calendario viene modificato automaticamente (data, ora, luogo, titolo, descrizione)
@@ -94,6 +94,7 @@ Le gare vengono identificate tramite **Numero Gara**, evitando doppioni anche in
 Ogni evento include:
 - Promemoria **24 ore prima**
 - Promemoria la **mattina stessa alle 08:00**
+- Eventuali notifiche personalizzate
 
 *(Il promemoria delle 08:00 viene creato solo se l’orario della gara è successivo alle 08:00.)*
 
