@@ -1,18 +1,13 @@
 const CALENDAR_NAME = "Partite - AC";
 const MAJOR_VERSION = 0;
 const MINOR_VERSION = 6;
-const PATCH_VERSION = 0;
+const PATCH_VERSION = 1;
 const CURRENT_VERSION = `${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}`;
 const githubUrl = "https://github.com/matteocheccacci/AutoCalendar-for-TBT-and-FipavOnline";
 
 const WHATS_NEW_TEXT = `
   <ul>
-    <li><b>Spostamento gare FWM:</b> E' stato aggiunto il supporto per lo spostamento gare di Fipav Web Manager.</li>
-    <li><b>Formattazione Nomi:</b> I nomi degli arbitri vengono ora convertiti automaticamente in formato leggibile (es: Rossi Mario).</li>
-    <li><b>Ordinamento Automatico:</b> La tabella viene riordinata cronologicamente dopo ogni sincronizzazione.</li>
-    <li><b>Notifiche Aggiornamento:</b> Aggiunto il riquadro "Novità" per mostrare le modifiche nella nuova versione.</li>
-    <li><b>Correzione formato numero gare:</b> E' stato corretto il formato del numero delle gare per fare in modo che non vengano rimossi eventuali zeri iniziali.</li>
-    <li><b>Notifiche Multiple:</b> Ora puoi inserire più promemoria extra separati dalla virgola (es: 60, 120, 1440).</li>
+    <li><b>Correzione BUG:</b> E' stato corretto un BUG che non consentiva di rilevare correttamente le variazioni di FWM.</li>
   </ul>`;
 
 const updtMailBody = `
@@ -276,7 +271,7 @@ function syncGmailToSheetAndCalendar(customQuery) {
     var isRegionale = from.includes("tiebreaktech") || htmlBody.includes("TieBreak");
 
     var dataGara = null;
-    if (subject.includes("VARIAZIONE") || subject.includes("SPOSTAMENTO")) {
+    if (subject.includes("VARIAZIONE") || subject.includes("SPOSTAMENTO") || subject.includes("AUTORIZZAZIONE")) {
       dataGara = isRegionale ? parseSpostamentoTBT(htmlBody) : parseSpostamentoFipavOnline(htmlBody);
     } else {
       dataGara = isRegionale ? parseRegionaleStandard(htmlBody) : parseTerritorialeStandard(htmlBody);
@@ -318,7 +313,7 @@ function syncGmailToSheetAndCalendar(customQuery) {
       if (rowIndex !== -1) {
         var oldRow = dataValues[rowIndex - 1];
 
-        if (subject.includes("VARIAZIONE") || subject.includes("SPOSTAMENTO")) {
+        if (subject.includes("VARIAZIONE") || subject.includes("SPOSTAMENTO") || subject.includes("AUTORIZZAZIONE")) {
           deleteCalendarEventById_(cal, targetId);
         }
 
@@ -344,7 +339,7 @@ function syncGmailToSheetAndCalendar(customQuery) {
         sheet.getRange(rowIndex, 7, 1, 3).setNumberFormat("@");
         targetRange.setValues([rowData]);
         
-      } else if (!subject.includes("VARIAZIONE") && !subject.includes("SPOSTAMENTO")) {
+      } else if (!subject.includes("VARIAZIONE") && !subject.includes("SPOSTAMENTO") && !subject.includes("AUTORIZZAZIONE")) {
         var rowDataNew = [
           dataGara.data, dataGara.ora, dataGara.luogo,
           dataGara.squadraCasa, dataGara.squadraOspite,
@@ -608,7 +603,7 @@ function parseRegionaleStandard(html) {
     var capIndex = lines.findIndex(l => l.match(/\d{5}$/));
     if (capIndex > 1) {
       var teamLine = lines[capIndex - 1];
-      var pair = splitTeamsSmart_(pair);
+      var pair = splitTeamsSmart_(teamLine);
       if (pair) {
         res.squadraCasa = pair.casa;
         res.squadraOspite = pair.ospite;
@@ -655,17 +650,30 @@ function parseSpostamentoTBT(html) {
   var text = cleanEmail(html);
   var res = {};
   try {
-    var matchGara = text.match(/modifiche alla gara n\.\s*(\d+)/i) || text.match(/Numero:\s*(\d+)/i);
+    // 1. Estrazione Numero Gara
+    var matchGara = text.match(/modifiche alla gara n\.\s*(\d+)/i) || 
+                    text.match(/Numero:\s*(\d+)/i) ||
+                    text.match(/gara n\.\s*(\d+)/i);
     if (!matchGara) return null;
     res.numeroGara = matchGara[1];
 
-    var matchDataOra = text.match(/Data attuale:\s*(\d{4}-\d{2}-\d{2})\s*(\d{2}:\d{2})/i);
+    // 2. Estrazione Data e Ora Attuale (formato YYYY-MM-DD o DD/MM/YYYY)
+    // Cerchiamo la riga "Data attuale:"
+    var matchDataOra = text.match(/Data attuale:\s*(\d{4})-(\d{2})-(\d{2})\s*(\d{2}:\d{2})/i) ||
+                       text.match(/Data attuale:\s*(\d{2}\/\d{2}\/\d{4})\s*(\d{2}:\d{2})/i);
+    
     if (matchDataOra) {
-      var parts = matchDataOra[1].split('-');
-      res.data = parts[2] + "/" + parts[1] + "/" + parts[0];
-      res.ora = matchDataOra[2];
+      // Se il primo gruppo catturato ha 4 cifre è anno (YYYY-MM-DD), altrimenti è già DD/MM/YYYY
+      if (matchDataOra[1].length === 4) {
+        res.data = matchDataOra[3] + "/" + matchDataOra[2] + "/" + matchDataOra[1];
+        res.ora = matchDataOra[4];
+      } else {
+        res.data = matchDataOra[1];
+        res.ora = matchDataOra[2];
+      }
     }
 
+    // 3. Estrazione Impianto Attuale
     var matchImpianto = text.match(/Impianto attuale:\s*([^\n\r]+)/i);
     if (matchImpianto) {
       res.luogo = normalizeText_(matchImpianto[1]);
@@ -681,6 +689,7 @@ function cleanEmail(html) {
   var s = String(html || "")
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<[^>]+>/g, '')
+    .replace(/=C3=A8/g, 'è') // Fix codifica Quoted-Printable comune
     .replace(/=3D/g, '=')
     .replace(/=20/g, ' ')
     .replace(/=\r?\n/g, '')
