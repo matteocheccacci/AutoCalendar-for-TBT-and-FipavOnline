@@ -1,13 +1,14 @@
 const CALENDAR_NAME = "Partite - AC";
 const MAJOR_VERSION = 0;
-const MINOR_VERSION = 6;
-const PATCH_VERSION = 1;
+const MINOR_VERSION = 7;
+const PATCH_VERSION = 0;
 const CURRENT_VERSION = `${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}`;
 const githubUrl = "https://github.com/matteocheccacci/AutoCalendar-for-TBT-and-FipavOnline";
 
 const WHATS_NEW_TEXT = `
   <ul>
-    <li><b>Correzione BUG:</b> E' stato corretto un BUG che non consentiva di rilevare correttamente le variazioni di FWM.</li>
+    <li><b>Niente più Google Meet:</b> gli eventi con invitati non generano più il link alla videochiamata. Nell'evento resta solo l'indirizzo dell'impianto (colonna C).</li>
+    <li><b>Pulizia automatica:</b> alla prima sincronizzazione il Meet viene rimosso anche dagli eventi già presenti in calendario.</li>
   </ul>`;
 
 const updtMailBody = `
@@ -401,6 +402,12 @@ function createCalendarEvents() {
   var futureLimit = new Date();
   futureLimit.setMonth(futureLimit.getMonth() + 6);
 
+  var calId = cal.getId();
+  var tz = cal.getTimeZone() || ss.getSpreadsheetTimeZone() || "Europe/Rome";
+
+  // Rimuove eventuali videochiamate Meet aggiunte automaticamente in passato
+  stripMeetFromRange_(calId, lookbackLimit, futureLimit);
+
   var allEvents = cal.getEvents(lookbackLimit, futureLimit);
 
   var movedCount = 0;
@@ -468,36 +475,23 @@ function createCalendarEvents() {
         ev.setTitle(title);
         
         ev.removeAllReminders();
-        ev.addPopupReminder(1440);
-        var morning = new Date(dOnly.getFullYear(), dOnly.getMonth(), dOnly.getDate(), 8, 0);
-        var rem = (start.getTime() - morning.getTime()) / 60000;
-        if (rem > 0) ev.addPopupReminder(rem);
-        
-        if (extraReminder) {
-          extraReminder.split(',').forEach(function(m) {
-            var val = parseInt(m.trim(), 10);
-            if (!isNaN(val)) ev.addPopupReminder(val);
-          });
-        }
+        buildReminderOverrides_(start, dOnly, extraReminder).forEach(function(o) {
+          ev.addPopupReminder(o.minutes);
+        });
       }
       delete eventsMap[garaIdNorm];
     } else {
       var guests = PropertiesService.getScriptProperties().getProperty('CALENDAR_GUESTS');
-      var params = { location: row[2], description: finalDesc };
-      if (guests && guests.trim() !== "") params.guests = guests;
-      var event = cal.createEvent(title, start, end, params);
-      event.removeAllReminders();
-      event.addPopupReminder(1440);
-      var morning = new Date(dOnly.getFullYear(), dOnly.getMonth(), dOnly.getDate(), 8, 0);
-      var rem = (start.getTime() - morning.getTime()) / 60000;
-      if (rem > 0) event.addPopupReminder(rem);
-      
-      if (extraReminder) {
-        extraReminder.split(',').forEach(function(m) {
-          var val = parseInt(m.trim(), 10);
-          if (!isNaN(val)) event.addPopupReminder(val);
-        });
-      }
+      var overrides = buildReminderOverrides_(start, dOnly, extraReminder);
+      createEventWithoutMeet_(calId, tz, {
+        title: title,
+        start: start,
+        end: end,
+        location: row[2],
+        description: finalDesc,
+        guests: guests,
+        overrides: overrides
+      });
     }
   }
 
@@ -506,6 +500,136 @@ function createCalendarEvents() {
   }
 
   return movedCount;
+}
+
+/**
+ * Chiamata generica all'API REST di Google Calendar.
+ * Usa il token OAuth del progetto: non serve abilitare servizi avanzati.
+ */
+function calendarApiFetch_(method, path, payload, params) {
+  var url = "https://www.googleapis.com/calendar/v3" + path;
+  if (params) {
+    var qs = Object.keys(params).map(function(k) {
+      return encodeURIComponent(k) + "=" + encodeURIComponent(params[k]);
+    }).join("&");
+    if (qs) url += (url.indexOf("?") === -1 ? "?" : "&") + qs;
+  }
+  var options = {
+    method: method,
+    headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() },
+    muteHttpExceptions: true
+  };
+  if (payload) {
+    options.contentType = "application/json";
+    options.payload = JSON.stringify(payload);
+  }
+  var resp = UrlFetchApp.fetch(url, options);
+  var code = resp.getResponseCode();
+  var text = resp.getContentText();
+  if (code < 200 || code >= 300) throw new Error("Calendar API " + code + ": " + text);
+  return text ? JSON.parse(text) : {};
+}
+
+/**
+ * Costruisce i promemoria popup: 24h prima, alle 08:00 del giorno gara ed extra personalizzati.
+ * Google accetta al massimo 5 override per evento.
+ */
+function buildReminderOverrides_(start, dOnly, extraReminder) {
+  var minutes = [1440];
+  var morning = new Date(dOnly.getFullYear(), dOnly.getMonth(), dOnly.getDate(), 8, 0);
+  var rem = Math.round((start.getTime() - morning.getTime()) / 60000);
+  if (rem > 0) minutes.push(rem);
+
+  if (extraReminder) {
+    extraReminder.split(',').forEach(function(m) {
+      var val = parseInt(String(m).trim(), 10);
+      if (!isNaN(val) && val > 0) minutes.push(val);
+    });
+  }
+
+  var seen = {};
+  var overrides = [];
+  minutes.forEach(function(v) {
+    if (v > 0 && v <= 40320 && !seen[v] && overrides.length < 5) {
+      seen[v] = true;
+      overrides.push({ method: "popup", minutes: v });
+    }
+  });
+  return overrides;
+}
+
+/**
+ * Crea l'evento SENZA videochiamata Meet.
+ * conferenceDataVersion=1 senza conferenceData impedisce l'aggiunta automatica del Meet
+ * quando l'evento ha degli invitati.
+ */
+function createEventWithoutMeet_(calId, tz, opt) {
+  var attendees = String(opt.guests || "")
+    .split(",")
+    .map(function(e) { return e.trim(); })
+    .filter(function(e) { return e !== ""; })
+    .map(function(e) { return { email: e }; });
+
+  var body = {
+    summary: opt.title,
+    location: opt.location ? String(opt.location) : "",
+    description: opt.description,
+    start: { dateTime: Utilities.formatDate(opt.start, tz, "yyyy-MM-dd'T'HH:mm:ss"), timeZone: tz },
+    end: { dateTime: Utilities.formatDate(opt.end, tz, "yyyy-MM-dd'T'HH:mm:ss"), timeZone: tz },
+    reminders: { useDefault: false, overrides: opt.overrides }
+  };
+  if (attendees.length > 0) body.attendees = attendees;
+
+  try {
+    return calendarApiFetch_(
+      "post",
+      "/calendars/" + encodeURIComponent(calId) + "/events",
+      body,
+      { conferenceDataVersion: 1, sendUpdates: "none" }
+    );
+  } catch (e) {
+    // Fallback di sicurezza: se l'API REST non risponde, l'evento viene comunque creato.
+    var cal = CalendarApp.getCalendarById(calId);
+    var params = { location: opt.location, description: opt.description };
+    if (attendees.length > 0) params.guests = attendees.map(function(a) { return a.email; }).join(",");
+    var ev = cal.createEvent(opt.title, opt.start, opt.end, params);
+    ev.removeAllReminders();
+    opt.overrides.forEach(function(o) { ev.addPopupReminder(o.minutes); });
+    return null;
+  }
+}
+
+/**
+ * Elimina la videochiamata Meet dagli eventi già esistenti nell'intervallo indicato.
+ */
+function stripMeetFromRange_(calId, timeMin, timeMax) {
+  try {
+    var pageToken = null;
+    do {
+      var params = {
+        timeMin: timeMin.toISOString(),
+        timeMax: timeMax.toISOString(),
+        singleEvents: true,
+        maxResults: 250
+      };
+      if (pageToken) params.pageToken = pageToken;
+
+      var resp = calendarApiFetch_("get", "/calendars/" + encodeURIComponent(calId) + "/events", null, params);
+      (resp.items || []).forEach(function(item) {
+        if (item.hangoutLink || item.conferenceData) {
+          try {
+            calendarApiFetch_(
+              "patch",
+              "/calendars/" + encodeURIComponent(calId) + "/events/" + encodeURIComponent(item.id),
+              { conferenceData: null },
+              { conferenceDataVersion: 1, sendUpdates: "none" }
+            );
+          } catch (e) {}
+        }
+      });
+      pageToken = resp.nextPageToken;
+    } while (pageToken);
+  } catch (e) {}
 }
 
 function splitTeamsSmart_(teamLineRaw) {
@@ -750,10 +874,10 @@ function checkUpdatesAutomated() {
     if (updateInfo.isNewer) {
       const myEmail = Session.getEffectiveUser().getEmail();
       if (myEmail) {
-      GmailApp.sendEmail(myEmail, "🚀 Aggiornamento AutoCalendar", "", {htmlBody: updtMailBody});
+        GmailApp.sendEmail(myEmail, "🚀 Aggiornamento AutoCalendar", "", { htmlBody: updtMailBody });
+      }
     }
     count = 0;
   }
   props.setProperty('UPDATE_CHECK_COUNT', count.toString());
-}
 }
