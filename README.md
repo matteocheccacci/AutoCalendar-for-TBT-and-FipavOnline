@@ -98,6 +98,15 @@ Ogni evento include:
 
 *(Il promemoria delle 08:00 viene creato solo se l’orario della gara è successivo alle 08:00.)*
 
+*(Google consente al massimo 5 promemoria per evento: eventuali duplicati vengono rimossi e i promemoria extra oltre il quinto vengono ignorati.)*
+
+### 🚫 Nessuna Videochiamata Meet
+Gli eventi con invitati **non generano più il link a Google Meet**: al suo posto resta l’indirizzo dell’impianto (colonna **C**) nel campo *Luogo*, così dall’evento si apre direttamente la navigazione.
+
+- Gli eventi nuovi vengono creati senza videoconferenza, anche se nelle impostazioni di Google Calendar è attiva l’aggiunta automatica del Meet.
+- Alla prima sincronizzazione il link Meet viene rimosso anche dagli eventi già presenti in calendario.
+- Non serve abilitare servizi avanzati: lo script usa l’API Calendar con le autorizzazioni già concesse. Alla prima esecuzione dopo l’aggiornamento Google potrebbe richiedere di **riautorizzare lo script**.
+
 ### 🔍 Sincronizzazione Manuale Estesa
 Analizza tutte le email degli ultimi **30 giorni**, incluse:
 - Designazioni già lette
