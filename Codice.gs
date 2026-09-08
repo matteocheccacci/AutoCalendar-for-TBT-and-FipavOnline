@@ -1,7 +1,7 @@
 const CALENDAR_NAME = "Partite - AC";
 const MAJOR_VERSION = 0;
 const MINOR_VERSION = 7;
-const PATCH_VERSION = 0;
+const PATCH_VERSION = 1;
 const CURRENT_VERSION = `${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}`;
 const githubUrl = "https://github.com/matteocheccacci/AutoCalendar-for-TBT-and-FipavOnline";
 
@@ -724,15 +724,34 @@ function parseRegionaleStandard(html) {
     if (mOra) res.ora = mOra[1].replace(".", ":");
 
     var lines = text.split('\n').map(s => normalizeText_(s)).filter(s => s.length > 0);
-    var capIndex = lines.findIndex(l => l.match(/\d{5}$/));
+
+    // Riga dell'impianto: contiene un CAP isolato (\b\d{5}\b evita di agganciare
+    // i numeri di telefono dei dirigenti, che sono cifre consecutive piu' lunghe).
+    var capIndex = lines.findIndex(l => /\b\d{5}\b/.test(l) && !/^Gara numero/i.test(l));
     if (capIndex > 1) {
-      var teamLine = lines[capIndex - 1];
-      var pair = splitTeamsSmart_(teamLine);
+      var pair = splitTeamsSmart_(lines[capIndex - 1]);
       if (pair) {
         res.squadraCasa = pair.casa;
         res.squadraOspite = pair.ospite;
       }
       res.luogo = lines[capIndex];
+    }
+
+    // Fallback: prima riga con " - " dopo "Gara numero", l'impianto e' quella successiva.
+    if (!res.squadraCasa) {
+      var gIdx = lines.findIndex(l => /Gara numero \d+/i.test(l));
+      for (var j = gIdx + 1; j < lines.length; j++) {
+        if (/^(Ruolo|Ufficiali|Contatto)/i.test(lines[j])) continue;
+        if (lines[j].indexOf(" - ") !== -1) {
+          var pair2 = splitTeamsSmart_(lines[j]);
+          if (pair2) {
+            res.squadraCasa = pair2.casa;
+            res.squadraOspite = pair2.ospite;
+            if (!res.luogo && lines[j + 1]) res.luogo = lines[j + 1];
+          }
+          break;
+        }
+      }
     }
 
     var mCat = text.match(/Gara numero \d+\s+(.*?)\s+del/i);
